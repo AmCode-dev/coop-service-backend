@@ -1,0 +1,39 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Cooperativa {
+  id       String  @id @default(cuid())
+  // Add fields here
+}
+
+model Usuario {
+  id       String  @id @default(cuid())
+  // Add fields here
+}
+
+model Rol {
+  id       String  @id @default(cuid())
+  // Add fields here
+}
+
+// ... (other models)
+
+model ConfiguracionRetencionDatos {
+  id       String  @id @default(cuid())
+  // Add fields here
+}
+
+// Enums
+enum TipoAccion {
+  // Add values here
+}
+
+// ... (other enums)
+
+// Relations, indexes, and constraints to be defined per your requirements
