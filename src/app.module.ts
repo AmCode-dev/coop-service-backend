@@ -1,9 +1,24 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { PrismaModule } from './prisma/prisma.module';
+import { HealthModule } from './health/health.module';
+import { AuthModule } from './auth/auth.module';
+import { CooperativasModule } from './cooperativas/cooperativas.module';
+import { InmueblesModule } from './inmuebles/inmuebles.module';
+import { MedidoresModule } from './medidores/medidores.module';
+import { PersonasModule } from './personas/personas.module';
 
 @Module({
-  imports: [],
+  imports: [
+    PrismaModule,
+    HealthModule,
+    AuthModule,
+    CooperativasModule,
+    InmueblesModule,
+    MedidoresModule,
+    PersonasModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })

@@ -1,0 +1,2755 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// MULTI-TENANT: COOPERATIVAS
+// ============================================
+
+model Cooperativa {
+  id           String   @id @default(cuid())
+  nombre       String
+  razonSocial  String
+  cuit         String   @unique
+  domicilio    String
+  localidad    String
+  provincia    String
+  codigoPostal String
+  telefono     String?
+  email        String?
+  logo         String? // URL o path al logo
+  activa       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relaciones
+  cuentas           Cuenta[]
+  servicios         ServicioDisponible[]
+  conceptos         ConceptoFacturable[]
+  categoriasConsumo CategoriaConsumo[]
+  seccionesSistema  SeccionSistema[]
+  roles             Rol[]
+  personas          Persona[]
+
+  zonas       Zona[]
+  operaciones Operacion[]
+
+  categoriasReportes     CategoriaReporte[]
+  plantillasReportes     PlantillaReporte[]
+  reportes               Reporte[]
+  logsConsultas          LogConsultaDirecta[]
+  configuracionRetencion ConfiguracionRetencionDatos?
+
+  legajos              Legajo[]
+  configuracionLegajos ConfiguracionLegajos?
+
+  // Onboarding
+  configuracionOnboarding ConfiguracionOnboarding?
+  procesosOnboarding      ProcesoOnboarding[]
+  reglasOnboarding        ReglaOnboarding[]
+
+  // Medidores
+  medidores Medidor[]
+  
+  // Multi-tenancy
+  usuariosMultiTenant UsuarioCooperativa[]
+
+  // Proveedor de pagos
+  proveedorPago ProveedorPagoCooperativa?
+
+  // Suscripciones y facturación
+  configuracionSuscripcion ConfiguracionSuscripcion?
+
+  // Períodos facturables
+  periodosFacturables PeriodoFacturable[]
+
+  @@map("cooperativas")
+}
+
+// ============================================
+// USUARIOS Y AUTENTICACIÓN
+// ============================================
+
+model Usuario {
+  id         String   @id @default(cuid())
+  email      String   @unique
+  password   String // Hash
+  nombre     String
+  apellido   String
+  telefono   String?
+  avatar     String?
+  activo     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relaciones Multi-Tenancy
+  cooperativas UsuarioCooperativa[]
+
+  intencionesPageCreadas IntencionPago[]
+  pagosRegistrados       Pago[]
+
+  operacionesCreadas   Operacion[]          @relation("OperacionesCreadas")
+  operacionesAsignadas Operacion[]          @relation("OperacionesAsignadas")
+  adjuntosSubidos      AdjuntoOperacion[]
+  historialOperaciones HistorialOperacion[]
+
+  plantillasCreadas      PlantillaReporte[]   @relation("PlantillasCreadas")
+  reportesSolicitados    Reporte[]            @relation("ReportesSolicitados")
+  reportesAprobados      Reporte[]            @relation("ReportesAprobados")
+  descargasReportes      DescargaReporte[]
+  reportesCompartidosPor ReporteCompartido[]  @relation("ReportesCompartidosPor")
+  reportesCompartidosCon ReporteCompartido[]  @relation("ReportesCompartidosCon")
+  logsConsultas          LogConsultaDirecta[]
+
+  legajosCreados                 Legajo[]                   @relation("LegajosCreados")
+  transferenciasRegistradas      TransferenciaTitularidad[] @relation("TransferenciasRegistradas")
+  transferenciasVerificadas      TransferenciaTitularidad[] @relation("TransferenciasVerificadas")
+  documentosLegajoSubidos        DocumentoLegajo[]          @relation("DocumentosLegajoSubidos")
+  documentosLegajoValidados      DocumentoLegajo[]          @relation("DocumentosLegajoValidados")
+  documentosTransferenciaSubidos DocumentoTransferencia[]
+  anotacionesLegajo              AnotacionLegajo[]
+
+  refreshTokens RefreshToken[]
+
+  // Onboarding
+  procesoOnboardingCreado ProcesoOnboarding? @relation("OnboardingUsuario")
+
+  // Medidores - Historial de vinculaciones
+  vinculacionesMedidores HistorialVinculacionMedidor[]
+
+  // Lecturas de medidores tomadas
+  lecturasMedidores Lectura[]
+
+  // KYC y Gestión de Personas
+  validacionesKYCRealizadas DocumentoKYC[]         @relation("ValidacionesKYC")
+  cambiosEstadoKYC          HistorialEstadoKYC[]   @relation("CambiosEstadoKYC")
+
+  // Historial de precios de categorías
+  historialPreciosCreados   HistorialPrecioCategoria[] @relation("HistorialPreciosCreados")
+
+  // Historial de conceptos facturables
+  historialConceptosCreados HistorialConcepto[]
+
+  // Períodos facturables
+  periodosFacturablesCreados PeriodoFacturable[]
+  periodosFacturablesCerrados PeriodoFacturable[] @relation("PeriodosCerrados")
+
+  // Conceptos facturables aplicados
+  conceptosAplicadosCreados ConceptoFacturableAplicado[]
+
+  @@index([email])
+  @@map("usuarios")
+}
+
+// ============================================
+// USUARIOS COOPERATIVAS (MULTI-TENANCY)
+// ============================================
+
+model UsuarioCooperativa {
+  id            String   @id @default(cuid())
+  usuarioId     String
+  cooperativaId String
+  esEmpleado    Boolean  @default(false) // true si es admin/empleado, false si es socio
+  activo        Boolean  @default(true)
+  fechaAlta     DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relaciones
+  usuario      Usuario      @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  cooperativa  Cooperativa  @relation(fields: [cooperativaId], references: [id], onDelete: Restrict)
+  
+  // Roles específicos por cooperativa
+  roles        UsuarioRol[]
+  
+  // Persona vinculada si es socio
+  persona      Persona?     @relation("UsuarioCooperativaPersona", fields: [personaId], references: [id])
+  personaId    String?
+
+  @@unique([usuarioId, cooperativaId])
+  @@index([usuarioId])
+  @@index([cooperativaId])
+  @@index([personaId])
+  @@map("usuarios_cooperativas")
+}
+
+// ============================================
+// REFRESH TOKENS
+// ============================================
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  expiresAt DateTime
+  isRevoked Boolean  @default(false)
+  
+  // Metadata de la sesión
+  userAgent String?
+  ipAddress String?
+  deviceId  String? // Para identificar dispositivos únicos
+  
+  // Información de uso
+  lastUsedAt DateTime?
+  usageCount Int      @default(0)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relación con usuario
+  usuarioId String
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  // Para rotación de tokens - referencia al token que reemplaza
+  replacedByTokenId String?       @unique
+  replacedByToken   RefreshToken? @relation("TokenReplacement", fields: [replacedByTokenId], references: [id])
+  replacesToken     RefreshToken? @relation("TokenReplacement")
+
+  @@index([usuarioId])
+  @@index([token])
+  @@index([expiresAt])
+  @@index([isRevoked])
+  @@map("refresh_tokens")
+}
+
+// ============================================
+// ROLES Y PERMISOS (RBAC)
+// ============================================
+
+model Rol {
+  id          String   @id @default(cuid())
+  nombre      String // ej: "Administrador", "Operador", "Socio", "Contador"
+  descripcion String?
+  esSistema   Boolean  @default(false) // Roles predefinidos del sistema
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  cooperativaId String
+  cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
+
+  // Relaciones
+  usuarios UsuarioRol[]
+  permisos RolPermiso[]
+
+  @@unique([cooperativaId, nombre])
+  @@index([cooperativaId])
+  @@map("roles")
+}
+
+model UsuarioRol {
+  id                   String   @id @default(cuid())
+  asignadoEn           DateTime @default(now())
+  activo               Boolean  @default(true)
+
+  // Cambio: Ahora se relaciona con UsuarioCooperativa en lugar de Usuario
+  usuarioCooperativaId String
+  usuarioCooperativa   UsuarioCooperativa @relation(fields: [usuarioCooperativaId], references: [id], onDelete: Cascade)
+
+  rolId String
+  rol   Rol    @relation(fields: [rolId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioCooperativaId, rolId])
+  @@index([usuarioCooperativaId])
+  @@index([rolId])
+  @@map("usuarios_roles")
+}
+
+model SeccionSistema {
+  id          String  @id @default(cuid())
+  nombre      String // ej: "Cuentas", "Facturación", "Pagos", "Usuarios"
+  codigo      String // ej: "cuentas", "facturacion", "pagos"
+  descripcion String?
+  icono       String?
+  orden       Int     @default(0)
+  activa      Boolean @default(true)
+
+  cooperativaId String
+  cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
+
+  // Relaciones
+  permisos RolPermiso[]
+
+  @@unique([cooperativaId, codigo])
+  @@index([cooperativaId])
+  @@map("secciones_sistema")
+}
+
+enum TipoAccion {
+  READ
+  WRITE
+  EXECUTE
+  DELETE
+}
+
+model RolPermiso {
+  id        String     @id @default(cuid())
+  accion    TipoAccion
+  createdAt DateTime   @default(now())
+
+  rolId String
+  rol   Rol    @relation(fields: [rolId], references: [id], onDelete: Cascade)
+
+  seccionId String
+  seccion   SeccionSistema @relation(fields: [seccionId], references: [id], onDelete: Cascade)
+
+  @@unique([rolId, seccionId, accion])
+  @@index([rolId])
+  @@index([seccionId])
+  @@map("roles_permisos")
+}
+
+// ============================================
+// PERSONAS (TITULARES)
+// ============================================
+
+enum TipoDocumento {
+  DNI
+  CUIL
+  CUIT
+  PASAPORTE
+  CI
+}
+
+enum CategoriaIVA {
+  RESPONSABLE_INSCRIPTO
+  MONOTRIBUTISTA
+  EXENTO
+  CONSUMIDOR_FINAL
+  NO_CATEGORIZADO
+}
+
+enum EstadoKYC {
+  PENDIENTE
+  EN_REVISION
+  APROBADO
+  RECHAZADO
+  REQUIERE_INFORMACION_ADICIONAL
+}
+
+enum TipoDocumentoKYC {
+  FRENTE_DNI
+  DORSO_DNI
+  SELFIE
+  COMPROBANTE_DOMICILIO
+  COMPROBANTE_INGRESOS
+  CUIT_CONSTANCIA
+  OTRO
+}
+
+enum EstadoSocio {
+  ACTIVO
+  SUSPENDIDO
+  DADO_DE_BAJA
+  MOROSO
+}
+
+model Persona {
+  id              String        @id @default(cuid())
+  nombreCompleto  String
+  tipoDocumento   TipoDocumento
+  numeroDocumento String
+  categoriaIVA    CategoriaIVA  @default(CONSUMIDOR_FINAL)
+
+  // Datos Personales Adicionales
+  fechaNacimiento DateTime?
+  estadoCivil     String?      // "SOLTERO", "CASADO", "DIVORCIADO", "VIUDO"
+  nacionalidad    String?      @default("Argentina")
+  
+  // Contacto
+  telefono        String?
+  telefonoMovil   String?
+  email           String?
+  emailSecundario String?
+
+  // Domicilio Actual (puede diferir del fiscal)
+  domicilioActual    String?
+  pisoActual         String?
+  codigoPostalActual String?
+  localidadActual    String?
+  departamentoActual String?
+  provinciaActual    String?
+
+  // Domicilio Fiscal
+  domicilioFiscal    String
+  pisoFiscal         String?
+  codigoPostalFiscal String?
+  localidadFiscal    String
+  departamentoFiscal String?
+  provinciaFiscal    String
+
+  // Información Laboral
+  ocupacion         String?
+  empresa           String?
+  ingresosMensuales Decimal? @db.Decimal(12,2)
+  
+  // Estado como Socio
+  numeroSocio  String?      @unique // Número único de socio en la cooperativa
+  fechaAlta    DateTime?    // Fecha de alta como socio
+  estadoSocio  EstadoSocio  @default(ACTIVO)
+  
+  // KYC (Know Your Customer)
+  estadoKYC           EstadoKYC @default(PENDIENTE)
+  fechaInicioKYC      DateTime?
+  fechaCompletadoKYC  DateTime?
+  observacionesKYC    String?
+  requiereActualizacionKYC Boolean @default(false)
+  proximaRevisionKYC  DateTime?
+  
+  // Preferencias
+  recibirNotificaciones        Boolean @default(true)
+  recibirNotificacionesPorSMS  Boolean @default(false)
+  recibirFacturaPorEmail       Boolean @default(true)
+  
+  // Auditoría
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cooperativaId String
+  cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id], onDelete: Restrict)
+
+  // Relaciones existentes
+  cuentasComoTitularServicio Cuenta[]   @relation("TitularServicio")
+  inmueblesComoTitular       Inmueble[] @relation("TitularInmueble")
+  
+  // Nueva relación multi-tenant
+  usuariosCooperativa        UsuarioCooperativa[] @relation("UsuarioCooperativaPersona")
+
+  transferenciasDesde TransferenciaTitularidad[] @relation("TransferenciasDesdeTitular")
+  transferenciasHacia TransferenciaTitularidad[] @relation("TransferenciasHaciaTitular")
+
+  // Nuevas relaciones KYC y gestión
+  documentosKYC       DocumentoKYC[]
+  historialEstadoKYC  HistorialEstadoKYC[]
+  solicitudesReset    SolicitudResetPassword[]
+  notificacionesEnviadas NotificacionPersona[]
+
+  @@unique([cooperativaId, tipoDocumento, numeroDocumento])
+  @@unique([cooperativaId, numeroSocio]) // Número de socio único por cooperativa
+  @@index([cooperativaId])
+  @@index([numeroDocumento])
+  @@index([estadoKYC])
+  @@index([estadoSocio])
+  @@index([numeroSocio])
+  @@map("personas")
+}
+
+// ============================================
+// GESTIÓN KYC Y DOCUMENTACIÓN
+// ============================================
+
+model DocumentoKYC {
+  id               String           @id @default(cuid())
+  personaId        String
+  persona          Persona          @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  
+  tipoDocumento    TipoDocumentoKYC
+  nombreArchivo    String
+  urlArchivo       String           // Ruta o URL del archivo subido
+  tamanioArchivo   Int?             // En bytes
+  mimeType         String?
+  
+  // Validación
+  validado         Boolean          @default(false)
+  fechaValidacion  DateTime?
+  validadoPorId    String?
+  validadoPor      Usuario?         @relation("ValidacionesKYC", fields: [validadoPorId], references: [id])
+  observaciones    String?
+  
+  // Estados
+  requiereReemplazo Boolean         @default(false)
+  fechaVencimiento DateTime?       // Para documentos que expiran
+  
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  
+  @@index([personaId])
+  @@index([tipoDocumento])
+  @@index([validado])
+  @@map("documentos_kyc")
+}
+
+model HistorialEstadoKYC {
+  id                String    @id @default(cuid())
+  personaId         String
+  persona           Persona   @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  
+  estadoAnterior    EstadoKYC?
+  estadoNuevo       EstadoKYC
+  motivo            String?
+  observaciones     String?
+  
+  // Auditoría
+  fechaCambio       DateTime  @default(now())
+  cambiadoPorId     String?
+  cambiadoPor       Usuario?  @relation("CambiosEstadoKYC", fields: [cambiadoPorId], references: [id])
+  
+  @@index([personaId, fechaCambio])
+  @@map("historial_estado_kyc")
+}
+
+model SolicitudResetPassword {
+  id            String    @id @default(cuid())
+  personaId     String
+  persona       Persona   @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  
+  token         String    @unique
+  usado         Boolean   @default(false)
+  fechaExpira   DateTime
+  
+  // Información de la solicitud
+  ipOrigen      String?
+  userAgent     String?
+  motivo        String?   // "OLVIDO_PASSWORD", "CAMBIO_SEGURIDAD", etc.
+  
+  // Uso del token
+  fechaUso      DateTime?
+  ipUso         String?
+  
+  createdAt     DateTime  @default(now())
+  
+  @@index([token])
+  @@index([personaId])
+  @@index([fechaExpira])
+  @@map("solicitudes_reset_password")
+}
+
+model NotificacionPersona {
+  id          String    @id @default(cuid())
+  personaId   String
+  persona     Persona   @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  
+  tipo        String    // "EMAIL", "SMS", "PUSH", "SISTEMA"
+  categoria   String    // "FACTURACION", "KYC", "GENERAL", "EMERGENCIA"
+  titulo      String
+  mensaje     String
+  
+  // Estado de entrega
+  enviado     Boolean   @default(false)
+  fechaEnvio  DateTime?
+  entregado   Boolean   @default(false)
+  fechaEntrega DateTime?
+  leido       Boolean   @default(false)
+  fechaLectura DateTime?
+  
+  // Datos técnicos
+  intentosEnvio Int      @default(0)
+  ultimoError   String?
+  
+  // Metadata
+  metadata    Json?     // Información adicional específica del tipo de notificación
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@index([personaId, tipo])
+  @@index([categoria])
+  @@index([enviado, fechaEnvio])
+  @@map("notificaciones_personas")
+}
+
+// ============================================
+// INMUEBLES
+// ============================================
+
+model Inmueble {
+  id           String  @id @default(cuid())
+  domicilio    String
+  piso         String?
+  codigoPostal String
+  localidad    String
+  departamento String?
+  provincia    String
+
+  // Datos Catastrales
+  seccion String?
+  chacra  String?
+  manzana String?
+  lote    String?
+  parcela String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  titularInmuebleId String
+  titularInmueble   Persona @relation("TitularInmueble", fields: [titularInmuebleId], references: [id], onDelete: Restrict)
+
+  // Relaciones
+  cuentas Cuenta[]
+
+  legajo Legajo?
+
+  // Nueva relación con medidores
+  medidores Medidor[]
+
+  @@index([titularInmuebleId])
+  @@map("inmuebles")
+}
+
+// ============================================
+// SERVICIOS Y CATEGORÍAS
+// ============================================
+
+model ServicioDisponible {
+  id          String   @id @default(cuid())
+  nombre      String // "Agua Potable", "Energía Eléctrica", "Internet"
+  codigo      String // "agua", "luz", "internet"
+  descripcion String?
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  cooperativaId String
+  cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
+
+  // Relaciones
+  cuentasServicios CuentaServicio[]
+  categorias       CategoriaConsumo[]
+
+  @@unique([cooperativaId, codigo])
+  @@index([cooperativaId])
+  @@map("servicios_disponibles")
+}
+
+model CategoriaConsumo {
+  id          String   @id @default(cuid())
+  nombre      String // "Categoría 1", "Residencial", "Comercial"
+  codigo      String // "cat_1", "residencial"
+  numero      Int? // 1, 2, 3... (si usa numeración)
+  descripcion String?
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  cooperativaId String
+  cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
+
+  servicioId String
+  servicio   ServicioDisponible @relation(fields: [servicioId], references: [id])
+
+  // Relaciones
+  cuentasServicios CuentaServicio[]
+  historialPrecios HistorialPrecioCategoria[]
+
+  @@unique([servicioId, codigo])
+  @@index([cooperativaId])
+  @@index([servicioId])
+  @@map("categorias_consumo")
+}
+
+model HistorialPrecioCategoria {
+  id            String    @id @default(cuid())
+  precioBase    Decimal   @db.Decimal(12, 4)
+  mes           Int // 1-12
+  anio          Int
+  vigenciaDesde DateTime
+  vigenciaHasta DateTime?
+  observaciones String?   // Motivo del cambio de precio
+  activo        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  categoriaId String
+  categoria   CategoriaConsumo @relation(fields: [categoriaId], references: [id])
+
+  // Usuario que registró el cambio de precio
+  creadoPorId String?
+  creadoPor   Usuario? @relation("HistorialPreciosCreados", fields: [creadoPorId], references: [id])
+
+  @@index([categoriaId])
+  @@index([mes, anio])
+  @@index([vigenciaDesde])
+  @@index([activo])
+  @@map("historial_precios_categorias")
+}
+
+// ============================================
+// CUENTAS Y SERVICIOS
+// ============================================
+
+model Cuenta {
+  id            String   @id @default(cuid())
+  numeroCuenta  String // "001-0027038-001"
+  fechaAlta     DateTime @default(now())
+  activa        Boolean  @default(true)
+  observaciones String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  cooperativaId String
+  cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
+
+  titularServicioId String
+  titularServicio   Persona @relation("TitularServicio", fields: [titularServicioId], references: [id], onDelete: Restrict)
+
+  inmuebleId String
+  inmueble   Inmueble @relation(fields: [inmuebleId], references: [id], onDelete: Restrict)
+
+  // Relaciones
+  servicios CuentaServicio[]
+  facturas  Factura[]
+  conceptosAplicados ConceptoFacturableAplicado[]
+
+  operaciones Operacion[]
+
+  @@unique([cooperativaId, numeroCuenta])
+  @@index([cooperativaId])
+  @@index([titularServicioId])
+  @@index([inmuebleId])
+  @@map("cuentas")
+}
+
+model CuentaServicio {
+  id            String    @id @default(cuid())
+  fechaAlta     DateTime  @default(now())
+  fechaBaja     DateTime?
+  activo        Boolean   @default(true)
+  observaciones String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  cuentaId String
+  cuenta   Cuenta @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+
+  servicioId String
+  servicio   ServicioDisponible @relation(fields: [servicioId], references: [id])
+
+  categoriaId String
+  categoria   CategoriaConsumo @relation(fields: [categoriaId], references: [id])
+
+  medidorId String?
+  medidor   Medidor? @relation(fields: [medidorId], references: [id])
+
+  // Relaciones
+  facturas    Factura[]
+  conceptosAplicados ConceptoFacturableAplicado[]
+  operaciones Operacion[]
+
+  @@unique([cuentaId, servicioId])
+  @@index([cuentaId])
+  @@index([servicioId])
+  @@index([categoriaId])
+  @@map("cuentas_servicios")
+}
+
+// ============================================
+// MEDIDORES Y LECTURAS
+// ============================================
+
+model Medidor {
+  id               String    @id @default(cuid())
+  numeroMedidor    String
+  marca            String?
+  modelo           String?
+  fechaInstalacion DateTime?
+  activo           Boolean   @default(true)
+  observaciones    String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Nueva relación con cooperativa
+  cooperativaId String
+  cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
+
+  // Relación opcional con inmueble para ubicación
+  inmuebleId String?
+  inmueble   Inmueble? @relation(fields: [inmuebleId], references: [id])
+
+  // Relaciones existentes
+  cuentasServicios CuentaServicio[]
+  lecturas         Lectura[]
+  operaciones      Operacion[]
+
+  // Nueva relación con historial de vinculaciones
+  historialVinculaciones HistorialVinculacionMedidor[]
+
+  @@unique([cooperativaId, numeroMedidor])
+  @@index([numeroMedidor])
+  @@index([cooperativaId])
+  @@index([inmuebleId])
+  @@map("medidores")
+}
+
+model Lectura {
+  id               String   @id @default(cuid())
+  fechaLectura     DateTime
+  valorLectura     Decimal  @db.Decimal(12, 2)
+  consumoCalculado Decimal? @db.Decimal(12, 2)
+  mes              Int // 1-12
+  anio             Int
+  observaciones    String?
+  
+  // Campos adicionales para análisis
+  esPrincipal      Boolean  @default(false) // Indica si es la lectura principal del mes
+  lecturaAnterior  Decimal? @db.Decimal(12, 2) // Lectura anterior para calcular consumo
+  anomalia         Boolean  @default(false) // Indica si hay anomalía detectada
+  tipoAnomalia     String? // Tipo de anomalía detectada
+  
+  // Datos del operador que tomó la lectura
+  tomadoPorId      String?
+  tomadoPor        Usuario? @relation(fields: [tomadoPorId], references: [id])
+  
+  createdAt        DateTime @default(now())
+
+  medidorId String
+  medidor   Medidor @relation(fields: [medidorId], references: [id])
+
+  facturaId String?
+  factura   Factura? @relation(fields: [facturaId], references: [id])
+
+  @@index([medidorId])
+  @@index([fechaLectura])
+  @@index([facturaId])
+  @@index([esPrincipal])
+  @@index([mes, anio])
+  @@map("lecturas")
+}
+
+// ============================================
+// HISTORIAL DE VINCULACIONES DE MEDIDORES
+// ============================================
+
+enum TipoVinculacion {
+  CUENTA_SERVICIO
+  INMUEBLE
+}
+
+enum AccionVinculacion {
+  VINCULACION
+  DESVINCULACION
+  CAMBIO
+}
+
+model HistorialVinculacionMedidor {
+  id String @id @default(cuid())
+
+  tipoVinculacion TipoVinculacion
+  accion          AccionVinculacion
+
+  // Datos de la vinculación
+  entidadAnteriorId String? // ID de la cuenta/inmueble anterior
+  entidadNuevaId    String? // ID de la cuenta/inmueble nueva
+  
+  // Información contextual
+  motivo        String? // Motivo del cambio
+  observaciones String?
+  
+  fechaOperacion DateTime @default(now())
+  
+  // Relaciones
+  medidorId String
+  medidor   Medidor @relation(fields: [medidorId], references: [id], onDelete: Cascade)
+  
+  operadoPorId String
+  operadoPor   Usuario @relation(fields: [operadoPorId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([medidorId])
+  @@index([fechaOperacion])
+  @@index([operadoPorId])
+  @@map("historial_vinculaciones_medidor")
+}
+
+// ============================================
+// CONCEPTOS FACTURABLES (CATÁLOGO)
+// ============================================
+
+enum TipoConcepto {
+  TARIFA_BASE // Tarifa base del servicio
+  TARIFA_EXTRA // Tarifa adicional (ej: cloaca)
+  TASA // Tasas municipales
+  IMPUESTO // Impuestos
+  FONDO_REGULATORIO // Fondos especiales
+  PUNITORIO // Recargos por mora
+  IVA // IVA sobre conceptos
+  DESCUENTO // Descuentos
+  OTRO // Otros conceptos
+}
+
+enum TipoCalculo {
+  POR_CANTIDAD // Monto unitario * cantidad
+  PORCENTUAL // % sobre otro concepto o base
+  FIJO // Monto fijo
+  AGREGADO // Se suma directamente
+}
+
+model ConceptoFacturable {
+  id           String       @id @default(cuid())
+  nombre       String // "Servicio de Agua", "Tasa Municipal", "IVA 21%"
+  codigo       String // "servicio_agua", "tasa_municipal"
+  descripcion  String?
+  tipoConcepto TipoConcepto
+  tipoCalculo  TipoCalculo
+
+  // Valores base (pueden cambiar en el tiempo)
+  valorActual   Decimal? @db.Decimal(12, 4) // monto o porcentaje actual
+  aplicaIVA     Boolean  @default(false)
+  porcentajeIVA Decimal? @db.Decimal(5, 2)
+
+  activo         Boolean  @default(true)
+  esConfigurable Boolean  @default(true) // false si es del sistema
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  cooperativaId String
+  cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
+
+  // Relaciones
+  historial    HistorialConcepto[]
+  itemsFactura ItemFactura[]
+  conceptosAplicados ConceptoFacturableAplicado[]
+
+  @@unique([cooperativaId, codigo])
+  @@index([cooperativaId])
+  @@index([tipoConcepto])
+  @@map("conceptos_facturables")
+}
+
+model HistorialConcepto {
+  id            String    @id @default(cuid())
+  valor         Decimal   @db.Decimal(12, 4)
+  vigenciaDesde DateTime
+  vigenciaHasta DateTime?
+  observaciones String?
+  motivo        String? // "Ajuste inflación", "Decisión asamblea", etc.
+  activo        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Auditoría
+  creadoPorId String?
+  creadoPor   Usuario? @relation(fields: [creadoPorId], references: [id])
+
+  conceptoId String
+  concepto   ConceptoFacturable @relation(fields: [conceptoId], references: [id])
+
+  @@index([conceptoId])
+  @@index([vigenciaDesde])
+  @@index([activo])
+  @@map("historial_conceptos")
+}
+
+// ============================================
+// GESTIÓN MENSUAL DE CONCEPTOS FACTURABLES
+// ============================================
+
+model PeriodoFacturable {
+  id            String   @id @default(cuid())
+  mes           Int // 1-12
+  anio          Int
+  periodo       String // "10/2024"
+  fechaInicio   DateTime
+  fechaFin      DateTime
+  estado        EstadoPeriodo @default(ABIERTO)
+  observaciones String?
+  fechaCierre   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Auditoría
+  creadoPorId String?
+  creadoPor   Usuario? @relation(fields: [creadoPorId], references: [id])
+  cerradoPorId String?
+  cerradoPor   Usuario? @relation("PeriodosCerrados", fields: [cerradoPorId], references: [id])
+
+  cooperativaId String
+  cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
+
+  // Relaciones
+  conceptosAplicados ConceptoFacturableAplicado[]
+
+  @@unique([cooperativaId, mes, anio])
+  @@index([cooperativaId])
+  @@index([estado])
+  @@index([mes, anio])
+  @@map("periodos_facturables")
+}
+
+enum EstadoPeriodo {
+  ABIERTO // Se pueden modificar conceptos
+  CERRADO // Ya no se puede modificar
+  FACTURADO // Ya se generaron las facturas
+}
+
+model ConceptoFacturableAplicado {
+  id               String   @id @default(cuid())
+  cantidad         Decimal  @db.Decimal(12, 4) // Cantidad aplicada (ej: m3 de agua)
+  valorUnitario    Decimal  @db.Decimal(12, 4) // Valor por unidad en ese período
+  subtotal         Decimal  @db.Decimal(12, 2) // cantidad * valorUnitario
+  aplicaIVA        Boolean  @default(false)
+  porcentajeIVA    Decimal? @db.Decimal(5, 2) // 21.00, 10.50, etc.
+  montoIVA         Decimal  @default(0) @db.Decimal(12, 2)
+  total            Decimal  @db.Decimal(12, 2) // subtotal + IVA
+  observaciones    String?
+  facturado        Boolean  @default(false) // Si ya se incluyó en factura
+  fechaAplicacion  DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Auditoría
+  creadoPorId String?
+  creadoPor   Usuario? @relation(fields: [creadoPorId], references: [id])
+
+  // Relaciones principales
+  periodoId       String
+  periodo         PeriodoFacturable @relation(fields: [periodoId], references: [id])
+  
+  conceptoId      String
+  concepto        ConceptoFacturable @relation(fields: [conceptoId], references: [id])
+  
+  cuentaId        String
+  cuenta          Cuenta @relation(fields: [cuentaId], references: [id])
+  
+  cuentaServicioId String?
+  cuentaServicio   CuentaServicio? @relation(fields: [cuentaServicioId], references: [id])
+
+  @@unique([periodoId, conceptoId, cuentaId]) // Un concepto por cuenta por período
+  @@index([periodoId])
+  @@index([conceptoId])
+  @@index([cuentaId])
+  @@index([facturado])
+  @@map("conceptos_facturables_aplicados")
+}
+
+// ============================================
+// FACTURAS
+// ============================================
+
+enum EstadoFactura {
+  PENDIENTE
+  PAGADA
+  VENCIDA
+  PARCIALMENTE_PAGADA
+  ANULADA
+}
+
+model Factura {
+  id            String @id @default(cuid())
+  numeroFactura String @unique
+  mes           Int // 1-12
+  anio          Int
+  periodo       String // "09/2025"
+
+  fechaEmision     DateTime @default(now())
+  fechaVencimiento DateTime
+
+  subtotal       Decimal @db.Decimal(12, 2)
+  totalIVA       Decimal @default(0) @db.Decimal(12, 2)
+  total          Decimal @db.Decimal(12, 2)
+  saldoPendiente Decimal @db.Decimal(12, 2)
+
+  estado        EstadoFactura @default(PENDIENTE)
+  observaciones String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cuentaId String
+  cuenta   Cuenta @relation(fields: [cuentaId], references: [id])
+
+  cuentaServicioId String
+  cuentaServicio   CuentaServicio @relation(fields: [cuentaServicioId], references: [id])
+
+  // Relaciones
+  items           ItemFactura[]
+  lecturas        Lectura[]
+  solicitudesPago SolicitudPago[]
+  pagos           Pago[]
+
+  @@index([cuentaId])
+  @@index([cuentaServicioId])
+  @@index([estado])
+  @@index([mes, anio])
+  @@index([fechaVencimiento])
+  @@map("facturas")
+}
+
+model ItemFactura {
+  id             String   @id @default(cuid())
+  descripcion    String // Descripción que aparecerá en la factura (puede ser editada)
+  cantidad       Decimal  @db.Decimal(12, 4)
+  precioUnitario Decimal  @db.Decimal(12, 4)
+  subtotal       Decimal  @db.Decimal(12, 2)
+  aplicaIVA      Boolean  @default(false)
+  montoIVA       Decimal  @default(0) @db.Decimal(12, 2)
+  total          Decimal  @db.Decimal(12, 2)
+  orden          Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  facturaId String
+  factura   Factura @relation(fields: [facturaId], references: [id], onDelete: Cascade)
+
+  conceptoId String
+  concepto   ConceptoFacturable @relation(fields: [conceptoId], references: [id])
+
+  @@index([facturaId])
+  @@index([conceptoId])
+  @@map("items_factura")
+}
+
+// ============================================
+// SOLICITUDES DE PAGO Y PAGOS
+// ============================================
+
+enum EstadoSolicitudPago {
+  PENDIENTE
+  PAGADA
+  VENCIDA
+  ANULADA
+}
+
+model SolicitudPago {
+  id               String              @id @default(cuid())
+  codigoSolicitud  String              @unique
+  codigoBarras     String
+  codigoQR         String
+  monto            Decimal             @db.Decimal(12, 2)
+  estado           EstadoSolicitudPago @default(PENDIENTE)
+  fechaVencimiento DateTime
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  facturaId String
+  factura   Factura @relation(fields: [facturaId], references: [id])
+
+  // Relaciones
+  intencionPago IntencionPago?
+  pagos         Pago[]
+
+  @@index([facturaId])
+  @@index([estado])
+  @@index([codigoSolicitud])
+  @@map("solicitudes_pago")
+}
+
+enum EstadoIntencionPago {
+  INICIADA
+  EN_PROCESO
+  APROBADA
+  RECHAZADA
+  EXPIRADA
+}
+
+model IntencionPago {
+  id                 String              @id @default(cuid())
+  referenciaBancaria String? // ID de transacción del banco
+  metodoPago         String? // "tarjeta", "transferencia", etc.
+  estado             EstadoIntencionPago @default(INICIADA)
+  respuestaAPI       Json? // Respuesta completa de la API bancaria
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  solicitudPagoId String        @unique
+  solicitudPago   SolicitudPago @relation(fields: [solicitudPagoId], references: [id])
+
+  creadoPorId String
+  creadoPor   Usuario @relation(fields: [creadoPorId], references: [id])
+
+  @@index([solicitudPagoId])
+  @@index([estado])
+  @@map("intenciones_pago")
+}
+
+enum TipoPago {
+  EFECTIVO
+  TRANSFERENCIA
+  TARJETA_DEBITO
+  TARJETA_CREDITO
+  CHEQUE
+  OTRO
+}
+
+model Pago {
+  id            String   @id @default(cuid())
+  monto         Decimal  @db.Decimal(12, 2)
+  fechaPago     DateTime
+  tipoPago      TipoPago
+  referencia    String? // Número de transacción, cheque, etc.
+  observaciones String?
+  createdAt     DateTime @default(now())
+
+  // Información del proveedor de pago
+  proveedorPagoId       String?      // ID del proveedor de pago utilizado
+  proveedorPago         ProveedorPago? @relation(fields: [proveedorPagoId], references: [id])
+  referenciaExterna     String?      // ID de transacción del proveedor externo
+  estadoProveedorPago   String?      // Estado reportado por el proveedor
+  respuestaProveedorPago Json?       // Respuesta completa del proveedor
+  comisionProveedor     Decimal?     @db.Decimal(12, 2) // Comisión cobrada por el proveedor
+  
+  facturaId String
+  factura   Factura @relation(fields: [facturaId], references: [id])
+
+  solicitudPagoId String?
+  solicitudPago   SolicitudPago? @relation(fields: [solicitudPagoId], references: [id])
+
+  registradoPorId String
+  registradoPor   Usuario @relation(fields: [registradoPorId], references: [id])
+
+  @@index([facturaId])
+  @@index([solicitudPagoId])
+  @@index([fechaPago])
+  @@index([proveedorPagoId])
+  @@index([referenciaExterna])
+  @@map("pagos")
+}
+
+// ============================================
+// REGISTRO DE OPERACIONES
+// ============================================
+
+enum TipoOperacion {
+  TOMA_LECTURA
+  REPARACION
+  MANTENIMIENTO
+  MEJORA
+  APROVISIONAMIENTO
+  INSPECCION
+  CORTE_SERVICIO
+  RECONEXION
+  INSTALACION
+  DESINSTALACION
+  OTRO
+}
+
+enum EstadoOperacion {
+  PROGRAMADA
+  EN_CURSO
+  COMPLETADA
+  CANCELADA
+  PENDIENTE_REVISION
+}
+
+enum PrioridadOperacion {
+  BAJA
+  MEDIA
+  ALTA
+  URGENTE
+}
+
+model Zona {
+  id          String   @id @default(cuid())
+  nombre      String // "Zona Norte", "Barrio Centro"
+  codigo      String // "zona_norte", "barrio_centro"
+  descripcion String?
+  coordenadas Json? // Polígono o coordenadas geográficas
+  activa      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  cooperativaId String
+  cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
+
+  // Relaciones
+  operaciones Operacion[]
+
+  @@unique([cooperativaId, codigo])
+  @@index([cooperativaId])
+  @@map("zonas")
+}
+
+model Operacion {
+  id        String             @id @default(cuid())
+  tipo      TipoOperacion
+  estado    EstadoOperacion    @default(PROGRAMADA)
+  prioridad PrioridadOperacion @default(MEDIA)
+
+  titulo        String // "Reparación fuga calle 123"
+  descripcion   String // Detalle completo
+  observaciones String? // Notas adicionales
+
+  fechaProgramada   DateTime?
+  fechaInicio       DateTime?
+  fechaFinalizacion DateTime?
+
+  // Ubicación
+  direccion      String?
+  coordenadasGPS Json? // {lat, lng}
+
+  // Costos
+  costoEstimado Decimal? @db.Decimal(12, 2)
+  costoReal     Decimal? @db.Decimal(12, 2)
+
+  // Materiales/Recursos
+  materialesUsados String? // Lista de materiales
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cooperativaId String
+  cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
+
+  zonaId String?
+  zona   Zona?   @relation(fields: [zonaId], references: [id])
+
+  cuentaId String? // Opcional: si la operación es sobre una cuenta específica
+  cuenta   Cuenta? @relation(fields: [cuentaId], references: [id])
+
+  cuentaServicioId String? // Opcional: si es sobre un servicio específico
+  cuentaServicio   CuentaServicio? @relation(fields: [cuentaServicioId], references: [id])
+
+  medidorId String? // Opcional: si la operación involucra un medidor
+  medidor   Medidor? @relation(fields: [medidorId], references: [id])
+
+  asignadoAId String? // Usuario/técnico asignado
+  asignadoA   Usuario? @relation("OperacionesAsignadas", fields: [asignadoAId], references: [id])
+
+  creadoPorId String
+  creadoPor   Usuario @relation("OperacionesCreadas", fields: [creadoPorId], references: [id])
+
+  // Relaciones
+  adjuntos  AdjuntoOperacion[]
+  historial HistorialOperacion[]
+
+  @@index([cooperativaId])
+  @@index([tipo])
+  @@index([estado])
+  @@index([prioridad])
+  @@index([zonaId])
+  @@index([cuentaId])
+  @@index([medidorId])
+  @@index([fechaProgramada])
+  @@index([asignadoAId])
+  @@map("operaciones")
+}
+
+model AdjuntoOperacion {
+  id          String   @id @default(cuid())
+  nombre      String
+  tipoArchivo String // "image/jpeg", "application/pdf"
+  urlArchivo  String // URL o path del archivo
+  tamano      Int? // Tamaño en bytes
+  descripcion String?
+  createdAt   DateTime @default(now())
+
+  operacionId String
+  operacion   Operacion @relation(fields: [operacionId], references: [id], onDelete: Cascade)
+
+  subidoPorId String
+  subidoPor   Usuario @relation(fields: [subidoPorId], references: [id])
+
+  @@index([operacionId])
+  @@map("adjuntos_operaciones")
+}
+
+model HistorialOperacion {
+  id             String           @id @default(cuid())
+  estadoAnterior EstadoOperacion?
+  estadoNuevo    EstadoOperacion
+  comentario     String?
+  cambiosJSON    Json? // Otros cambios realizados
+  createdAt      DateTime         @default(now())
+
+  operacionId String
+  operacion   Operacion @relation(fields: [operacionId], references: [id], onDelete: Cascade)
+
+  usuarioId String
+  usuario   Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@index([operacionId])
+  @@index([createdAt])
+  @@map("historial_operaciones")
+}
+
+// ============================================
+// REPORTES Y AUDITORÍA DE EXPORTACIÓN
+// ============================================
+
+enum TipoReporte {
+  FACTURACION
+  COBRANZAS
+  CUENTAS_CORRIENTES
+  SERVICIOS
+  CONSUMOS
+  OPERACIONES
+  USUARIOS
+  PAGOS
+  DEUDORES
+  ESTADISTICAS
+  AUDITORIA
+  PERSONALIZADO
+}
+
+enum FormatoExportacion {
+  PDF
+  EXCEL
+  CSV
+  JSON
+  XML
+}
+
+enum EstadoReporte {
+  SOLICITADO
+  PROCESANDO
+  COMPLETADO
+  ERROR
+  CANCELADO
+}
+
+model CategoriaReporte {
+  id          String   @id @default(cuid())
+  nombre      String // "Reportes Financieros", "Reportes Operativos"
+  codigo      String // "financieros", "operativos"
+  descripcion String?
+  icono       String?
+  orden       Int      @default(0)
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  cooperativaId String
+  cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
+
+  // Relaciones
+  plantillas PlantillaReporte[]
+
+  @@unique([cooperativaId, codigo])
+  @@index([cooperativaId])
+  @@map("categorias_reportes")
+}
+
+model PlantillaReporte {
+  id          String      @id @default(cuid())
+  nombre      String // "Reporte de Facturación Mensual"
+  codigo      String // "facturacion_mensual"
+  descripcion String?
+  tipo        TipoReporte
+
+  // Query y configuración
+  querySQL         String? // Query base (puede tener parámetros)
+  parametrosConfig Json? // Configuración de parámetros esperados
+
+  // Visualización
+  columnasConfig     Json? // Configuración de columnas a mostrar
+  agregacionesConfig Json? // SUMs, AVGs, etc.
+
+  formatosPorDefecto FormatoExportacion[] // Formatos disponibles
+
+  requiereAprobacion Boolean @default(false)
+  esPublico          Boolean @default(false) // Visible para socios
+  esSistema          Boolean @default(false) // Plantilla del sistema
+  activo             Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cooperativaId String
+  cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
+
+  categoriaId String?
+  categoria   CategoriaReporte? @relation(fields: [categoriaId], references: [id])
+
+  creadoPorId String?
+  creadoPor   Usuario? @relation("PlantillasCreadas", fields: [creadoPorId], references: [id])
+
+  // Relaciones
+  reportes Reporte[]
+
+  @@unique([cooperativaId, codigo])
+  @@index([cooperativaId])
+  @@index([tipo])
+  @@index([categoriaId])
+  @@map("plantillas_reportes")
+}
+
+model Reporte {
+  id          String             @id @default(cuid())
+  titulo      String
+  descripcion String?
+  tipo        TipoReporte
+  formato     FormatoExportacion
+  estado      EstadoReporte      @default(SOLICITADO)
+
+  // Datos de la solicitud
+  parametrosUsados Json? // Parámetros con los que se ejecutó
+  filtrosAplicados Json? // Filtros aplicados
+
+  // Query ejecutada (auditoría)
+  queryEjecutada String // Query SQL real ejecutada
+
+  // Resultado
+  cantidadRegistros  Int? // Cantidad de registros retornados
+  urlArchivoGenerado String? // URL del archivo generado
+  nombreArchivo      String?
+  tamanoArchivo      Int? // Tamaño en bytes
+  hashArchivo        String? // SHA256 del archivo para integridad
+
+  // Metadata de auditoría
+  ipSolicitud String? // IP desde donde se solicitó
+  userAgent   String? // Navegador/cliente usado
+
+  // Tiempos
+  fechaSolicitud     DateTime  @default(now())
+  fechaInicioProceso DateTime?
+  fechaCompletado    DateTime?
+  tiempoEjecucionMs  Int? // Tiempo de ejecución en ms
+
+  // Error handling
+  mensajeError String?
+  stackTrace   String?
+
+  // Acceso y descarga
+  vecesDescargado Int       @default(0)
+  ultimaDescarga  DateTime?
+  fechaExpiracion DateTime? // Cuando se borrará el archivo
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cooperativaId String
+  cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
+
+  plantillaId String?
+  plantilla   PlantillaReporte? @relation(fields: [plantillaId], references: [id])
+
+  solicitadoPorId String
+  solicitadoPor   Usuario @relation("ReportesSolicitados", fields: [solicitadoPorId], references: [id])
+
+  aprobadoPorId String?
+  aprobadoPor   Usuario? @relation("ReportesAprobados", fields: [aprobadoPorId], references: [id])
+
+  // Relaciones
+  descargas   DescargaReporte[]
+  compartidos ReporteCompartido[]
+
+  @@index([cooperativaId])
+  @@index([tipo])
+  @@index([estado])
+  @@index([solicitadoPorId])
+  @@index([fechaSolicitud])
+  @@index([plantillaId])
+  @@map("reportes")
+}
+
+model DescargaReporte {
+  id            String   @id @default(cuid())
+  fechaDescarga DateTime @default(now())
+  ipDescarga    String?
+  userAgent     String?
+
+  reporteId String
+  reporte   Reporte @relation(fields: [reporteId], references: [id], onDelete: Cascade)
+
+  usuarioId String
+  usuario   Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@index([reporteId])
+  @@index([usuarioId])
+  @@index([fechaDescarga])
+  @@map("descargas_reportes")
+}
+
+model ReporteCompartido {
+  id              String    @id @default(cuid())
+  mensaje         String?
+  puedeDescargar  Boolean   @default(true)
+  fechaExpiracion DateTime?
+  fechaCompartido DateTime  @default(now())
+
+  reporteId String
+  reporte   Reporte @relation(fields: [reporteId], references: [id], onDelete: Cascade)
+
+  compartidoPorId String
+  compartidoPor   Usuario @relation("ReportesCompartidosPor", fields: [compartidoPorId], references: [id])
+
+  compartidoConId String
+  compartidoCon   Usuario @relation("ReportesCompartidosCon", fields: [compartidoConId], references: [id])
+
+  @@index([reporteId])
+  @@index([compartidoPorId])
+  @@index([compartidoConId])
+  @@map("reportes_compartidos")
+}
+
+model LogConsultaDirecta {
+  id String @id @default(cuid())
+
+  // Query ejecutada
+  queryEjecutada    String
+  tipoOperacion     String // "SELECT", "INSERT", "UPDATE", "DELETE"
+  tablasPrincipales String[] // Tablas involucradas
+
+  // Resultado
+  registrosAfectados Int?
+  tiempoEjecucionMs  Int?
+
+  // Metadata
+  ipOrigen  String?
+  userAgent String?
+  contexto  String? // "API", "Panel Admin", "Script Automatico"
+
+  // Error handling
+  exitoso      Boolean @default(true)
+  mensajeError String?
+
+  fechaEjecucion DateTime @default(now())
+
+  cooperativaId String
+  cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
+
+  ejecutadoPorId String
+  ejecutadoPor   Usuario @relation(fields: [ejecutadoPorId], references: [id])
+
+  @@index([cooperativaId])
+  @@index([ejecutadoPorId])
+  @@index([fechaEjecucion])
+  @@index([tipoOperacion])
+  @@map("logs_consultas_directas")
+}
+
+model ConfiguracionRetencionDatos {
+  id String @id @default(cuid())
+
+  // Políticas de retención
+  diasRetencionReportes Int @default(90) // Días que se mantienen archivos
+  diasRetencionLogs     Int @default(180) // Días que se mantienen logs
+
+  // Límites
+  maxReportesPorUsuarioDia Int @default(50)
+  maxReportesPorUsuarioMes Int @default(500)
+  maxTamanoArchivoMB       Int @default(100)
+
+  // Notificaciones
+  notificarExportaciones        Boolean @default(true)
+  notificarExportacionesMasivas Boolean @default(true)
+  umbralExportacionMasiva       Int     @default(10000) // registros
+
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cooperativaId String      @unique
+  cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
+
+  @@map("configuraciones_retencion_datos")
+}
+
+// ============================================
+// LEGAJOS Y TITULARIDAD HISTÓRICA
+// ============================================
+
+enum TipoDocumentoLegajo {
+  ESCRITURA
+  BOLETO_COMPRAVENTA
+  CONTRATO_ALQUILER
+  PODER_NOTARIAL
+  ACTA_DEFUNCION
+  SUCESION
+  CERTIFICADO_DOMINIO
+  PLANO_CATASTRAL
+  HABILITACION_MUNICIPAL
+  CONSTANCIA_AFIP
+  CARTA_DOCUMENTO
+  NOTA_ADMINISTRATIVA
+  COMPROBANTE_PAGO
+  FOTOGRAFIA
+  OTRO
+}
+
+enum EstadoLegajo {
+  ACTIVO
+  ARCHIVADO
+  EN_REVISION
+  INCOMPLETO
+  OBSERVADO
+}
+
+enum MotivoTransferencia {
+  COMPRAVENTA
+  DONACION
+  HERENCIA
+  DIVORCIO
+  CESION_DERECHOS
+  ADJUDICACION_JUDICIAL
+  RESTITUCION
+  CAMBIO_DATOS
+  SUBDIVISION
+  UNIFICACION
+  OTRO
+}
+
+model Legajo {
+  id           String       @id @default(cuid())
+  numeroLegajo String       @unique // "LEG-001-2025"
+  estado       EstadoLegajo @default(ACTIVO)
+
+  fechaApertura DateTime  @default(now())
+  fechaCierre   DateTime?
+
+  observaciones String?
+
+  // Ubicación física del legajo
+  ubicacionArchivo String? // "Estante 3, Caja 15"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cooperativaId String
+  cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
+
+  inmuebleId String   @unique
+  inmueble   Inmueble @relation(fields: [inmuebleId], references: [id], onDelete: Restrict)
+
+  creadoPorId String
+  creadoPor   Usuario @relation("LegajosCreados", fields: [creadoPorId], references: [id])
+
+  // Relaciones
+  transferencias TransferenciaTitularidad[]
+  documentos     DocumentoLegajo[]
+  anotaciones    AnotacionLegajo[]
+
+  @@index([cooperativaId])
+  @@index([inmuebleId])
+  @@index([estado])
+  @@index([numeroLegajo])
+  @@map("legajos")
+}
+
+model TransferenciaTitularidad {
+  id                  String @id @default(cuid())
+  numeroTransferencia String // "TRANS-001-2025"
+
+  motivo            MotivoTransferencia
+  descripcionMotivo String?
+
+  fechaTransferencia DateTime // Fecha efectiva del cambio
+  fechaRegistro      DateTime @default(now())
+
+  // Datos del titular anterior
+  titularAnteriorId String
+  titularAnterior   Persona @relation("TransferenciasDesdeTitular", fields: [titularAnteriorId], references: [id], onDelete: Restrict)
+
+  // Datos del nuevo titular
+  titularNuevoId String
+  titularNuevo   Persona @relation("TransferenciasHaciaTitular", fields: [titularNuevoId], references: [id], onDelete: Restrict)
+
+  // Información adicional
+  valorTransferencia Decimal? @db.Decimal(12, 2)
+  moneda             String?  @default("ARS")
+
+  // Datos notariales/legales
+  escribania      String?
+  numeroEscritura String?
+  folioRegistro   String?
+
+  // Validación
+  verificado    Boolean @default(false)
+  observaciones String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  legajoId String
+  legajo   Legajo @relation(fields: [legajoId], references: [id], onDelete: Restrict)
+
+  registradoPorId String
+  registradoPor   Usuario @relation("TransferenciasRegistradas", fields: [registradoPorId], references: [id])
+
+  verificadoPorId String?
+  verificadoPor   Usuario? @relation("TransferenciasVerificadas", fields: [verificadoPorId], references: [id])
+
+  // Relaciones
+  documentos DocumentoTransferencia[]
+
+  @@index([legajoId])
+  @@index([titularAnteriorId])
+  @@index([titularNuevoId])
+  @@index([fechaTransferencia])
+  @@index([numeroTransferencia])
+  @@map("transferencias_titularidad")
+}
+
+model DocumentoLegajo {
+  id            String              @id @default(cuid())
+  nombre        String // "Escritura original"
+  tipoDocumento TipoDocumentoLegajo
+  descripcion   String?
+
+  // Archivo
+  nombreArchivo String // "escritura_123.pdf"
+  urlArchivo    String // URL o path del archivo escaneado
+  tipoMIME      String // "application/pdf", "image/jpeg"
+  tamanoBytes   Int
+  hashArchivo   String // SHA256 para integridad
+
+  // Metadata del documento
+  numeroDocumento  String? // Número interno del documento legal
+  fechaDocumento   DateTime? // Fecha del documento original
+  fechaVencimiento DateTime? // Si aplica (ej: contratos)
+
+  // Digitalización
+  calidadEscaneo   String? // "Alta", "Media", "Baja"
+  requiereOriginal Boolean @default(false)
+
+  // Validación
+  validado        Boolean   @default(false)
+  fechaValidacion DateTime?
+
+  observaciones String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  legajoId String
+  legajo   Legajo @relation(fields: [legajoId], references: [id], onDelete: Cascade)
+
+  subidoPorId String
+  subidoPor   Usuario @relation("DocumentosLegajoSubidos", fields: [subidoPorId], references: [id])
+
+  validadoPorId String?
+  validadoPor   Usuario? @relation("DocumentosLegajoValidados", fields: [validadoPorId], references: [id])
+
+  @@index([legajoId])
+  @@index([tipoDocumento])
+  @@index([fechaDocumento])
+  @@index([validado])
+  @@map("documentos_legajo")
+}
+
+model DocumentoTransferencia {
+  id            String              @id @default(cuid())
+  nombre        String
+  tipoDocumento TipoDocumentoLegajo
+  descripcion   String?
+
+  // Archivo
+  nombreArchivo String
+  urlArchivo    String
+  tipoMIME      String
+  tamanoBytes   Int
+  hashArchivo   String
+
+  // Metadata
+  numeroDocumento String?
+  fechaDocumento  DateTime?
+
+  observaciones String?
+  createdAt     DateTime @default(now())
+
+  transferenciaId String
+  transferencia   TransferenciaTitularidad @relation(fields: [transferenciaId], references: [id], onDelete: Cascade)
+
+  subidoPorId String
+  subidoPor   Usuario @relation(fields: [subidoPorId], references: [id])
+
+  @@index([transferenciaId])
+  @@index([tipoDocumento])
+  @@map("documentos_transferencia")
+}
+
+model AnotacionLegajo {
+  id             String   @id @default(cuid())
+  titulo         String?
+  contenido      String // Nota o anotación
+  importante     Boolean  @default(false)
+  fechaAnotacion DateTime @default(now())
+
+  legajoId String
+  legajo   Legajo @relation(fields: [legajoId], references: [id], onDelete: Cascade)
+
+  anotadoPorId String
+  anotadoPor   Usuario @relation(fields: [anotadoPorId], references: [id])
+
+  @@index([legajoId])
+  @@index([fechaAnotacion])
+  @@map("anotaciones_legajo")
+}
+
+model HistorialTitularidadView {
+  id String @id @default(cuid())
+
+  // Para consultas rápidas del historial completo
+  inmuebleId String
+  legajoId   String
+
+  titularId        String
+  nombreTitular    String
+  documentoTitular String
+
+  fechaInicio DateTime
+  fechaFin    DateTime?
+  esActual    Boolean
+
+  motivoCambio    MotivoTransferencia?
+  transferenciaId String?
+
+  createdAt DateTime @default(now())
+
+  @@index([inmuebleId])
+  @@index([legajoId])
+  @@index([titularId])
+  @@index([fechaInicio])
+  @@map("historial_titularidad_view")
+}
+
+model ConfiguracionLegajos {
+  id String @id @default(cuid())
+
+  // Nomenclatura
+  prefijoLegajo        String @default("LEG")
+  prefijoTransferencia String @default("TRANS")
+
+  // Validaciones
+  requiereValidacionDocumentos Boolean @default(true)
+  requiereDobleVerificacion    Boolean @default(false)
+
+  // Almacenamiento
+  directorioBase     String   @default("/legajos")
+  maxTamanoArchivoMB Int      @default(50)
+  formatosPermitidos String[] @default(["pdf", "jpg", "jpeg", "png", "tiff"])
+
+  // Retención
+  diasRetencionArchivados Int @default(3650) // 10 años
+
+  // Notificaciones
+  notificarTransferencias Boolean @default(true)
+  notificarVencimientos   Boolean @default(true)
+  diasAvisoVencimiento    Int     @default(30)
+
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cooperativaId String      @unique
+  cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
+
+  @@map("configuraciones_legajos")
+}
+
+// ============================================
+// SISTEMA DE ONBOARDING PARA COOPERATIVAS
+// ============================================
+
+model ConfiguracionOnboarding {
+  id String @id @default(cuid())
+
+  // Configuración general
+  activado                Boolean @default(true)
+  requiereAprobacionManual Boolean @default(false)
+  tiempoLimiteOnboarding  Int     @default(30) // días
+
+  // Configuración de pasos
+  pasosObligatorios String[] @default(["DATOS_PERSONALES", "DOCUMENTACION", "ACEPTACION_TERMINOS"])
+  pasosOpcionales   String[] @default(["CONFIGURACION_SERVICIOS", "ENCUESTA_BIENVENIDA"])
+
+  // Configuración de documentos
+  documentosRequeridos String[] @default(["DNI", "COMPROBANTE_DOMICILIO"])
+  documentosOpcionales String[] @default(["COMPROBANTE_INGRESOS"])
+
+  // Configuración de validaciones
+  requiereValidacionEmail     Boolean @default(true)
+  requiereValidacionTelefono  Boolean @default(false)
+  requiereValidacionDomicilio Boolean @default(true)
+
+  // Configuración de comunicaciones
+  emailBienvenida        String?
+  emailRecordatorio      String?
+  diasRecordatorio       Int     @default(7)
+  maxRecordatorios       Int     @default(3)
+  emailAprobacion        String?
+  emailRechazo           String?
+
+  // Configuración de integraciones
+  integrarConSistemaContable Boolean @default(false)
+  integrarConCRM            Boolean @default(false)
+  crearCuentaAutomatica     Boolean @default(true)
+  asignarServiciosBasicos   String[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cooperativaId String      @unique
+  cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
+
+  @@map("configuraciones_onboarding")
+}
+
+model ProcesoOnboarding {
+  id String @id @default(cuid())
+
+  // Información del solicitante
+  email           String
+  nombre          String
+  apellido        String
+  telefono        String?
+  documento       String
+  tipoDocumento   TipoDocumento @default(DNI)
+  fechaNacimiento DateTime?
+
+  // Datos de domicilio
+  domicilio     String?
+  localidad     String?
+  provincia     String?
+  codigoPostal  String?
+
+  // Estado del proceso
+  estado                EstadoOnboarding    @default(INICIADO)
+  fechaInicio          DateTime            @default(now())
+  fechaUltimaActividad DateTime            @default(now())
+  fechaFinalizacion    DateTime?
+  fechaVencimiento     DateTime?
+
+  // Progreso
+  pasoActual        String   @default("DATOS_PERSONALES")
+  pasosCompletados  String[] @default([])
+  pasosPendientes   String[] @default([])
+
+  // Validaciones
+  emailValidado     Boolean @default(false)
+  telefonoValidado  Boolean @default(false)
+  domicilioValidado Boolean @default(false)
+
+  // Aprobación
+  requiereAprobacion    Boolean   @default(false)
+  fechaAprobacion       DateTime?
+  usuarioAprobadorId    String?
+  motivoRechazo         String?
+  observacionesInternas String?
+
+  // Metadata
+  ipRegistro      String?
+  userAgent       String?
+  origenSolicitud String? // WEB, MOBILE, PRESENCIAL, etc.
+  codigoReferencia String? @unique // Código único para seguimiento
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  cooperativaId String
+  cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
+
+  documentos         DocumentoOnboarding[]
+  pasos              PasoOnboarding[]
+  validaciones       ValidacionOnboarding[]
+  comunicaciones     ComunicacionOnboarding[]
+  resultadosReglas   ResultadoReglaOnboarding[]
+
+  // Usuario creado después de la aprobación
+  usuarioCreadoId String?  @unique
+  usuarioCreado   Usuario? @relation("OnboardingUsuario", fields: [usuarioCreadoId], references: [id])
+
+  @@index([cooperativaId])
+  @@index([email])
+  @@index([documento])
+  @@index([estado])
+  @@index([fechaInicio])
+  @@map("procesos_onboarding")
+}
+
+model ReglaOnboarding {
+  id String @id @default(cuid())
+
+  nombre      String
+  descripcion String?
+  activa      Boolean @default(true)
+  orden       Int     @default(0)
+
+  // Configuración de la regla
+  tipoRegla    TipoReglaOnboarding
+  condiciones  Json // Condiciones para que se aplique la regla
+  acciones     Json // Acciones a ejecutar cuando se cumple la regla
+  parametros   Json? // Parámetros adicionales de la regla
+
+  // Configuración de ejecución
+  ejecutarEn   EtapaOnboarding[] @default([VALIDACION])
+  esCritica    Boolean           @default(false) // Si falla, bloquea el proceso
+  esAsincrona  Boolean           @default(false) // Se ejecuta en background
+
+  // Configuración de reintentos
+  permiteReintentos Boolean @default(true)
+  maxReintentos     Int     @default(3)
+  tiempoEsperaMins  Int     @default(5)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cooperativaId String
+  cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
+
+  resultados ResultadoReglaOnboarding[]
+
+  @@index([cooperativaId])
+  @@index([tipoRegla])
+  @@index([activa])
+  @@map("reglas_onboarding")
+}
+
+model DocumentoOnboarding {
+  id String @id @default(cuid())
+
+  nombre          String
+  tipoDocumento   String
+  descripcion     String?
+  esObligatorio   Boolean @default(true)
+
+  // Archivo
+  nombreArchivo   String
+  rutaArchivo     String
+  tamanoBytes     Int
+  tipoMime        String
+  hashArchivo     String? // Para verificar integridad
+
+  // Estado de validación
+  estado          EstadoDocumento @default(PENDIENTE)
+  fechaSubida     DateTime        @default(now())
+  fechaValidacion DateTime?
+  observaciones   String?
+
+  // Metadatos de validación
+  validadoPor     String? // ID del usuario que validó
+  requiereReenvio Boolean @default(false)
+  motivoRechazo   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  procesoOnboardingId String
+  procesoOnboarding   ProcesoOnboarding @relation(fields: [procesoOnboardingId], references: [id], onDelete: Cascade)
+
+  @@index([procesoOnboardingId])
+  @@index([tipoDocumento])
+  @@index([estado])
+  @@map("documentos_onboarding")
+}
+
+model PasoOnboarding {
+  id String @id @default(cuid())
+
+  nombre        String
+  descripcion   String?
+  orden         Int
+  esObligatorio Boolean @default(true)
+
+  // Estado del paso
+  estado              EstadoPaso @default(PENDIENTE)
+  fechaInicio         DateTime?
+  fechaCompletado     DateTime?
+  intentosRealizados  Int        @default(0)
+  maxIntentos         Int        @default(3)
+
+  // Datos del paso
+  datosEntrada  Json? // Datos necesarios para el paso
+  datosSalida   Json? // Datos resultantes del paso
+  configuracion Json? // Configuración específica del paso
+
+  // Validación
+  requiereValidacion Boolean @default(false)
+  validadoPor        String? // ID del usuario que validó
+  fechaValidacion    DateTime?
+  observaciones      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  procesoOnboardingId String
+  procesoOnboarding   ProcesoOnboarding @relation(fields: [procesoOnboardingId], references: [id], onDelete: Cascade)
+
+  @@index([procesoOnboardingId])
+  @@index([estado])
+  @@map("pasos_onboarding")
+}
+
+model ValidacionOnboarding {
+  id String @id @default(cuid())
+
+  tipoValidacion TipoValidacion
+  campo          String // Campo que se está validando
+  valor          String // Valor a validar
+  estado         EstadoValidacion @default(PENDIENTE)
+
+  // Resultado de la validación
+  esValido         Boolean   @default(false)
+  fechaValidacion  DateTime?
+  motivoRechazo    String?
+  datosValidacion  Json? // Datos adicionales de la validación
+  intentos         Int       @default(0)
+
+  // Configuración de reintentos
+  permiteReintentos Boolean @default(true)
+  proximoIntento    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  procesoOnboardingId String
+  procesoOnboarding   ProcesoOnboarding @relation(fields: [procesoOnboardingId], references: [id], onDelete: Cascade)
+
+  @@index([procesoOnboardingId])
+  @@index([tipoValidacion])
+  @@index([estado])
+  @@map("validaciones_onboarding")
+}
+
+model ComunicacionOnboarding {
+  id String @id @default(cuid())
+
+  tipoComunicacion TipoComunicacion
+  canal            CanalComunicacion
+  destinatario     String // Email o teléfono
+  asunto           String?
+  mensaje          String
+  plantilla        String? // ID de la plantilla utilizada
+
+  // Estado del envío
+  estado       EstadoComunicacion @default(PENDIENTE)
+  fechaEnvio   DateTime?
+  fechaLectura DateTime? // Para emails
+  intentos     Int                @default(0)
+  error        String?
+
+  // Respuesta (si aplica)
+  respuesta      String?
+  fechaRespuesta DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  procesoOnboardingId String
+  procesoOnboarding   ProcesoOnboarding @relation(fields: [procesoOnboardingId], references: [id], onDelete: Cascade)
+
+  @@index([procesoOnboardingId])
+  @@index([tipoComunicacion])
+  @@index([estado])
+  @@map("comunicaciones_onboarding")
+}
+
+model ResultadoReglaOnboarding {
+  id String @id @default(cuid())
+
+  // Ejecución de la regla
+  fechaEjecucion DateTime @default(now())
+  estado         EstadoEjecucionRegla
+  tiempo        Int? // Tiempo de ejecución en ms
+
+  // Resultado
+  exitosa        Boolean
+  mensaje        String?
+  datosResultado Json? // Datos del resultado de la regla
+  error          String?
+
+  // Reintentos
+  intento       Int @default(1)
+  proximoIntento DateTime?
+
+  createdAt DateTime @default(now())
+
+  procesoOnboardingId String
+  procesoOnboarding   ProcesoOnboarding @relation(fields: [procesoOnboardingId], references: [id], onDelete: Cascade)
+
+  reglaOnboardingId String
+  reglaOnboarding   ReglaOnboarding @relation(fields: [reglaOnboardingId], references: [id])
+
+  @@index([procesoOnboardingId])
+  @@index([reglaOnboardingId])
+  @@index([estado])
+  @@map("resultados_reglas_onboarding")
+}
+
+// ============================================
+// ENUMS PARA ONBOARDING
+// ============================================
+
+enum EstadoOnboarding {
+  INICIADO
+  EN_PROGRESO
+  PENDIENTE_VALIDACION
+  PENDIENTE_APROBACION
+  COMPLETADO
+  RECHAZADO
+  CANCELADO
+  EXPIRADO
+}
+
+enum TipoReglaOnboarding {
+  VALIDACION_DATOS
+  VERIFICACION_IDENTIDAD
+  COMPROBACION_DOMICILIO
+  VALIDACION_CREDITICIA
+  INTEGRACION_EXTERNA
+  ASIGNACION_SERVICIOS
+  CREACION_CUENTA
+  NOTIFICACION
+  CUSTOM
+}
+
+enum EtapaOnboarding {
+  INICIO
+  VALIDACION
+  DOCUMENTACION
+  VERIFICACION
+  APROBACION
+  FINALIZACION
+}
+
+enum EstadoDocumento {
+  PENDIENTE
+  EN_REVISION
+  APROBADO
+  RECHAZADO
+  REQUERIDO_REENVIO
+}
+
+enum EstadoPaso {
+  PENDIENTE
+  EN_PROGRESO
+  COMPLETADO
+  FALLIDO
+  OMITIDO
+}
+
+enum TipoValidacion {
+  EMAIL
+  TELEFONO
+  DOCUMENTO_IDENTIDAD
+  DOMICILIO
+  REFERENCIA_CREDITICIA
+  ANTECEDENTES
+  CUSTOM
+}
+
+enum EstadoValidacion {
+  PENDIENTE
+  EN_PROGRESO
+  EXITOSA
+  FALLIDA
+  REINTENTANDO
+}
+
+enum TipoComunicacion {
+  BIENVENIDA
+  RECORDATORIO
+  SOLICITUD_DOCUMENTOS
+  APROBACION
+  RECHAZO
+  FINALIZACION
+  CUSTOM
+}
+
+enum CanalComunicacion {
+  EMAIL
+  SMS
+  WHATSAPP
+  PUSH_NOTIFICATION
+  LLAMADA
+}
+
+enum EstadoComunicacion {
+  PENDIENTE
+  ENVIADA
+  ENTREGADA
+  LEIDA
+  RESPONDIDA
+  FALLIDA
+}
+
+enum EstadoEjecucionRegla {
+  PENDIENTE
+  EJECUTANDO
+  COMPLETADA
+  FALLIDA
+  REINTENTANDO
+}
+
+// ============================================
+// PROVEEDORES DE PAGO
+// ============================================
+
+enum TipoProveedorPago {
+  MERCADOPAGO
+  PAYPAL
+  STRIPE
+  PAYWAY
+  DECIDIR
+  TODO_PAGO
+  RAPIPAGO
+  PAGO_FACIL
+  LINK_PAGOS
+  BANCO_NACION
+  BANCO_PROVINCIA
+  TRANSFERENCIA_DIRECTA
+  CUSTOM
+}
+
+enum EstadoProveedorPago {
+  ACTIVO
+  INACTIVO
+  EN_PRUEBAS
+  MANTENIMIENTO
+  DESHABILITADO
+}
+
+model ProveedorPago {
+  id String @id @default(cuid())
+
+  // Información básica
+  nombre          String           // "MercadoPago", "PayPal", "Stripe"
+  codigo          String           @unique // "mercadopago", "paypal", "stripe"
+  tipo            TipoProveedorPago
+  descripcion     String?
+  logoUrl         String?          // URL del logo del proveedor
+  sitioWeb        String?          // URL del sitio web del proveedor
+
+  // Configuración técnica
+  apiBaseUrl      String?          // URL base de la API
+  versionApi      String?          // Versión de API soportada
+  documentacionUrl String?         // URL de documentación técnica
+  
+  // Características
+  soportaWebhooks     Boolean @default(false)
+  soportaTarjetas     Boolean @default(true)
+  soportaTransferencias Boolean @default(false)
+  soportaEfectivo     Boolean @default(false)
+  soportaRecurrentes  Boolean @default(false)
+  
+  // Límites y configuración
+  montoMinimo         Decimal? @db.Decimal(12, 2)
+  montoMaximo         Decimal? @db.Decimal(12, 2)
+  comisionPorcentaje  Decimal? @db.Decimal(5, 4) // % de comisión
+  comisionFija        Decimal? @db.Decimal(12, 2) // Monto fijo de comisión
+  
+  // Configuración de tiempo
+  tiempoExpiracionMinutos Int @default(60) // Tiempo de expiración de pagos
+  tiempoConfirmacionHoras Int @default(72) // Tiempo máximo para confirmación
+  
+  // Datos del proveedor
+  paisesDisponibles   String[] @default([]) // Códigos de países donde opera
+  monedasSoportadas   String[] @default(["ARS"]) // Monedas soportadas
+  
+  // Estado
+  estado              EstadoProveedorPago @default(ACTIVO)
+  activo              Boolean @default(true)
+  
+  // Auditoría
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  // Relaciones
+  cooperativas        ProveedorPagoCooperativa[]
+  pagos               Pago[]
+
+  @@index([codigo])
+  @@index([tipo])
+  @@index([estado])
+  @@map("proveedores_pago")
+}
+
+model ProveedorPagoCooperativa {
+  id String @id @default(cuid())
+
+  // Configuración específica de la cooperativa
+  activo              Boolean @default(true)
+  esPrincipal         Boolean @default(false) // Proveedor principal de la cooperativa
+  
+  // Credenciales de acceso (encriptadas)
+  tokenAcceso         String  // Token principal (encriptado)
+  tokenRefresh        String? // Token de refresh si aplica (encriptado)
+  clavePublica        String? // Clave pública (encriptado)
+  clavePrivada        String? // Clave privada (encriptado)
+  
+  // Configuración específica
+  entornoPruebas      Boolean @default(true) // true = sandbox, false = producción
+  webhookUrl          String? // URL para recibir notificaciones
+  webhookSecret       String? // Secret para validar webhooks (encriptado)
+  
+  // Configuración personalizada para esta cooperativa
+  configuracionPersonalizada Json? // Configuraciones específicas del proveedor
+  
+  // Límites personalizados
+  montoMinimo         Decimal? @db.Decimal(12, 2)
+  montoMaximo         Decimal? @db.Decimal(12, 2)
+  comisionAdicional   Decimal? @db.Decimal(5, 4) // Comisión adicional de la cooperativa
+  
+  // Información de integración
+  fechaIntegracion    DateTime @default(now())
+  fechaUltimaConexion DateTime?
+  estadoConexion      String   @default("NO_VERIFICADO") // NO_VERIFICADO, CONECTADO, ERROR
+  ultimoErrorConexion String?
+  
+  // Estadísticas de uso
+  totalTransacciones  Int      @default(0)
+  montoTotalProcesado Decimal  @default(0) @db.Decimal(15, 2)
+  ultimaTransaccion   DateTime?
+  
+  // Auditoría
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  // Relaciones
+  cooperativaId       String        @unique
+  cooperativa         Cooperativa   @relation(fields: [cooperativaId], references: [id], onDelete: Cascade)
+  
+  proveedorPagoId     String
+  proveedorPago       ProveedorPago @relation(fields: [proveedorPagoId], references: [id], onDelete: Restrict)
+
+  @@index([cooperativaId])
+  @@index([proveedorPagoId])
+  @@index([activo])
+  @@index([esPrincipal])
+  @@map("proveedores_pago_cooperativas")
+}
+
+// ============================================
+// SISTEMA DE SUSCRIPCIONES Y COMISIONES
+// ============================================
+
+enum EstadoSuscripcion {
+  ACTIVA
+  SUSPENDIDA
+  VENCIDA
+  CANCELADA
+}
+
+enum EstadoSolicitudComision {
+  PENDIENTE
+  EN_REVISION
+  APROBADA
+  RECHAZADA
+}
+
+enum EstadoSuscripcionFactura {
+  GENERADA
+  APROBADA
+  PAGADA
+  VENCIDA
+  ANULADA
+}
+
+enum TipoPagoSuscripcion {
+  SISTEMA // Pago realizado a través del sistema
+  EXTERNO // Pago realizado fuera del sistema
+}
+
+// Configuración de suscripción por cooperativa
+model ConfiguracionSuscripcion {
+  id String @id @default(cuid())
+
+  // Configuración de comisión
+  porcentajeComision    Decimal @db.Decimal(5, 4) // Ej: 2.5% = 0.0250
+  comisionMinima        Decimal @default(0) @db.Decimal(12, 2) // Comisión mínima por mes
+  comisionMaxima        Decimal? @db.Decimal(12, 2) // Comisión máxima por mes (opcional)
+  
+  // Configuración de facturación
+  diaGeneracionFactura  Int     @default(1) // Día del mes para generar facturas (1-28)
+  diasVencimientoFactura Int    @default(30) // Días desde generación hasta vencimiento
+  
+  // Configuración de pagos
+  incluyeIVA            Boolean @default(true)
+  porcentajeIVA         Decimal @default(21) @db.Decimal(5, 2) // 21% IVA
+  
+  // Información comercial
+  fechaInicioSuscripcion DateTime @default(now())
+  fechaFinSuscripcion    DateTime? // null = suscripción indefinida
+  observaciones          String?
+  
+  // Configuración de notificaciones
+  notificarGeneracionFactura Boolean @default(true)
+  notificarVencimientoFactura Boolean @default(true)
+  diasAvisoVencimiento       Int     @default(7)
+  
+  // Estado
+  activa                Boolean  @default(true)
+  fechaUltimModificacion DateTime @default(now())
+  modificadoPorSuperAdmin String? // ID del superadmin que hizo el último cambio
+  
+  // Auditoría
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  // Relaciones
+  cooperativaId         String      @unique
+  cooperativa           Cooperativa @relation(fields: [cooperativaId], references: [id], onDelete: Cascade)
+  
+  // Historial de cambios
+  historialCambios      HistorialConfiguracionSuscripcion[]
+  solicitudesComision   SolicitudCambioComision[]
+  facturasSuscripcion   SuscripcionFactura[]
+
+  @@index([cooperativaId])
+  @@index([activa])
+  @@index([porcentajeComision])
+  @@map("configuraciones_suscripcion")
+}
+
+// Historial de cambios en la configuración de suscripción
+model HistorialConfiguracionSuscripcion {
+  id String @id @default(cuid())
+
+  // Datos del cambio
+  campoModificado       String  // "porcentajeComision", "comisionMinima", etc.
+  valorAnterior         String  // Valor anterior serializado
+  valorNuevo            String  // Valor nuevo serializado
+  motivo                String? // Motivo del cambio
+  
+  // Información del cambio
+  fechaCambio           DateTime @default(now())
+  realizadoPorSuperAdmin String  // ID del superadmin que realizó el cambio
+  aprobadoPorSuperAdmin  String? // ID del superadmin que aprobó (si aplica)
+  
+  // Auditoría
+  createdAt             DateTime @default(now())
+
+  // Relaciones
+  configuracionId       String
+  configuracion         ConfiguracionSuscripcion @relation(fields: [configuracionId], references: [id], onDelete: Cascade)
+
+  @@index([configuracionId])
+  @@index([fechaCambio])
+  @@index([campoModificado])
+  @@map("historial_configuraciones_suscripcion")
+}
+
+// Solicitudes de cambio de comisión por parte de las cooperativas
+model SolicitudCambioComision {
+  id String @id @default(cuid())
+
+  // Datos de la solicitud
+  porcentajeComisionActual    Decimal @db.Decimal(5, 4) // Comisión actual
+  porcentajeComisionSolicitado Decimal @db.Decimal(5, 4) // Comisión solicitada
+  
+  // Justificación
+  motivo                      String  // Motivo de la solicitud
+  justificacion               String? // Justificación detallada
+  documentosAdjuntos          String[] @default([]) // URLs de documentos adjuntos
+  
+  // Datos comerciales para justificar
+  volumenMensualPromedio      Decimal? @db.Decimal(15, 2) // Volumen promedio mensual
+  cantidadPagosPromedio       Int?     // Cantidad promedio de pagos por mes
+  tiempoComoCiente            Int?     // Meses como cliente
+  proyeccionCrecimiento       Decimal? @db.Decimal(5, 2) // % de crecimiento proyectado
+  
+  // Estado de la solicitud
+  estado                      EstadoSolicitudComision @default(PENDIENTE)
+  fechaSolicitud              DateTime @default(now())
+  fechaRevision               DateTime?
+  fechaResolucion             DateTime?
+  
+  // Respuesta de superadmins
+  respuestaSuperAdmin         String? // Respuesta/comentarios del superadmin
+  porcentajeComisionAprobado  Decimal? @db.Decimal(5, 4) // Comisión finalmente aprobada
+  fechaInicioNuevaComision    DateTime? // Cuándo entra en vigor la nueva comisión
+  
+  // Auditoría
+  revisadoPorSuperAdmin       String? // ID del superadmin que revisó
+  aprobadoPorSuperAdmin       String? // ID del superadmin que aprobó/rechazó
+  
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  // Relaciones
+  configuracionId             String
+  configuracion               ConfiguracionSuscripcion @relation(fields: [configuracionId], references: [id], onDelete: Cascade)
+
+  @@index([configuracionId])
+  @@index([estado])
+  @@index([fechaSolicitud])
+  @@index([porcentajeComisionSolicitado])
+  @@map("solicitudes_cambio_comision")
+}
+
+// Facturas de suscripción generadas mensualmente
+model SuscripcionFactura {
+  id String @id @default(cuid())
+
+  // Datos del período
+  mes                   Int      // 1-12
+  anio                  Int
+  periodo               String   // "10/2025"
+  
+  // Fechas importantes
+  fechaGeneracion       DateTime @default(now())
+  fechaVencimiento      DateTime
+  fechaAprobacion       DateTime? // Cuando el superadmin aprueba la factura
+  fechaPago             DateTime? // Cuando se marca como pagada
+  
+  // Datos de facturación
+  cantidadPagos         Int      // Cantidad de pagos procesados en el mes
+  montoTotalPagos       Decimal  @db.Decimal(15, 2) // Suma total de pagos del mes
+  porcentajeComision    Decimal  @db.Decimal(5, 4) // % de comisión aplicado
+  
+  // Cálculos
+  subtotalComision      Decimal  @db.Decimal(12, 2) // Comisión antes de impuestos
+  montoIVA              Decimal  @db.Decimal(12, 2) // IVA sobre la comisión
+  totalFactura          Decimal  @db.Decimal(12, 2) // Total a pagar
+  
+  // Estado
+  estado                EstadoSuscripcionFactura @default(GENERADA)
+  tipoPago              TipoPagoSuscripcion?     // Cómo se realizó el pago
+  referenciaPago        String?                  // Referencia del pago (transferencia, etc.)
+  
+  // Observaciones
+  observaciones         String?
+  observacionesPago     String? // Observaciones sobre el pago
+  
+  // Auditoría
+  generadoPorSistema    Boolean  @default(true)
+  aprobadoPorSuperAdmin String?  // ID del superadmin que aprobó
+  marcadoPagadoPor      String?  // ID del superadmin que marcó como pagado
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  // Relaciones
+  configuracionId       String
+  configuracion         ConfiguracionSuscripcion @relation(fields: [configuracionId], references: [id], onDelete: Restrict)
+
+  @@unique([configuracionId, mes, anio]) // Una factura por cooperativa por mes
+  @@index([configuracionId])
+  @@index([estado])
+  @@index([fechaGeneracion])
+  @@index([fechaVencimiento])
+  @@index([mes, anio])
+  @@map("suscripciones_facturas")
+}
+
+// Configuración de datos bancarios para recibir pagos de suscripciones
+model ConfiguracionDatosBancarios {
+  id String @id @default(cuid())
+
+  // Datos bancarios principales
+  nombreCuenta          String  // Nombre de la cuenta bancaria
+  nombreBanco           String  // Nombre del banco
+  cbu                   String  // CBU para transferencias
+  alias                 String? // Alias bancario (opcional)
+  
+  // Datos adicionales
+  numeroCuenta          String? // Número de cuenta bancaria
+  tipoCuenta            String? // "CUENTA_CORRIENTE", "CAJA_AHORRO"
+  sucursal              String? // Nombre o número de sucursal
+  
+  // Información para facturas
+  razonSocialTitular    String  // Razón social del titular de la cuenta
+  cuitTitular           String  // CUIT del titular de la cuenta
+  domicilioFiscal       String  // Domicilio fiscal del titular
+  
+  // Configuración
+  activo                Boolean  @default(true)
+  esPrincipal           Boolean  @default(true) // Cuenta principal para recibir pagos
+  
+  // Información adicional para cooperativas
+  instruccionesPago     String?  // Instrucciones adicionales para el pago
+  horarioAtencion       String?  // Horario de atención para consultas
+  emailContacto         String?  // Email de contacto para temas de pagos
+  telefonoContacto      String?  // Teléfono de contacto
+  
+  // Auditoría
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  creadoPorSuperAdmin   String   // ID del superadmin que creó la configuración
+  modificadoPorSuperAdmin String? // ID del último superadmin que modificó
+
+  @@index([activo])
+  @@index([esPrincipal])
+  @@map("configuraciones_datos_bancarios")
+}
