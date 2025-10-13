@@ -5,6 +5,7 @@ import { extname } from 'path';
 
 // Servicios
 import { CooperativasService } from './cooperativas.service';
+import { CooperativasProgressService } from './cooperativas-progress.service';
 import { OnboardingService } from './services/onboarding.service';
 import { ConfiguracionOnboardingService } from './services/configuracion-onboarding.service';
 
@@ -53,11 +54,13 @@ import { ConfiguracionOnboardingController } from './controllers/configuracion-o
   ],
   providers: [
     CooperativasService,
+    CooperativasProgressService,
     OnboardingService,
     ConfiguracionOnboardingService,
   ],
   exports: [
     CooperativasService,
+    CooperativasProgressService,
     OnboardingService,
     ConfiguracionOnboardingService,
   ],

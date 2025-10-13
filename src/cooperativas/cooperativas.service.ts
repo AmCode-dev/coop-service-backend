@@ -4,8 +4,14 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Cooperativa, PrismaClient, TipoAccion } from '../../generated/prisma';
-
+import {
+  Cooperativa,
+  SeccionSistema,
+  TipoAccion,
+} from '../../generated/prisma';
+import { PrismaClient, Prisma } from '@prisma/client';
+import { CooperativasProgressService } from './cooperativas-progress.service';
+import { v4 as uuidv4 } from 'uuid';
 export interface CreateCooperativaDto {
   nombre: string;
   razonSocial: string;
@@ -61,7 +67,10 @@ type prismaTransaction = Omit<
 
 @Injectable()
 export class CooperativasService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly progressService: CooperativasProgressService,
+  ) {}
 
   async findAll(): Promise<Cooperativa[]> {
     return this.prisma.cooperativa.findMany({
@@ -228,71 +237,76 @@ export class CooperativasService {
 
     try {
       // Usar transacción para asegurar consistencia
-      return await this.prisma.$transaction(async (tx) => {
-        // 1. Crear la cooperativa
-        const nuevaCooperativa = await tx.cooperativa.create({
-          data: cooperativaData,
-        });
+      return await this.prisma.$transaction(
+        async (tx) => {
+          // 1. Crear la cooperativa
+          const nuevaCooperativa = await tx.cooperativa.create({
+            data: cooperativaData,
+          });
 
-        // 2. Crear configuración inicial (roles, secciones, onboarding)
-        await this.configurarCooperativaInicial(tx, nuevaCooperativa.id);
+          // 2. Crear configuración inicial (roles, secciones, onboarding)
+          await this.configurarCooperativaInicial(tx, nuevaCooperativa.id);
 
-        // 3. Crear el usuario administrador
-        // Por ahora sin hash de password - se puede implementar después
-        const hashPassword = administrador.password; // TODO: usar bcrypt.hash(administrador.password, 10)
+          // 3. Crear el usuario administrador
+          // Por ahora sin hash de password - se puede implementar después
+          const hashPassword = administrador.password; // TODO: usar bcrypt.hash(administrador.password, 10)
 
-        const nuevoAdmin = await tx.usuario.create({
-          data: {
-            email: administrador.email,
-            password: hashPassword,
-            nombre: administrador.nombre,
-            apellido: administrador.apellido,
-            telefono: administrador.telefono,
-          },
-        });
-
-        // Crear relación usuario-cooperativa
-        const usuarioCooperativa = await tx.usuarioCooperativa.create({
-          data: {
-            usuarioId: nuevoAdmin.id,
-            cooperativaId: nuevaCooperativa.id,
-            esEmpleado: true,
-          },
-        });
-
-        // 4. Asignar rol de Administrador
-        const rolAdmin = await tx.rol.findFirst({
-          where: {
-            cooperativaId: nuevaCooperativa.id,
-            nombre: 'Administrador',
-          },
-        });
-
-        if (rolAdmin) {
-          await tx.usuarioRol.create({
+          const nuevoAdmin = await tx.usuario.create({
             data: {
-              usuarioCooperativaId: usuarioCooperativa.id,
-              rolId: rolAdmin.id,
+              email: administrador.email,
+              password: hashPassword,
+              nombre: administrador.nombre,
+              apellido: administrador.apellido,
+              telefono: administrador.telefono,
             },
           });
-        }
 
-        return {
-          cooperativa: {
-            id: nuevaCooperativa.id,
-            nombre: nuevaCooperativa.nombre,
-            cuit: nuevaCooperativa.cuit,
-          },
-          administrador: {
-            id: nuevoAdmin.id,
-            email: nuevoAdmin.email,
-            nombre: nuevoAdmin.nombre,
-            apellido: nuevoAdmin.apellido,
-          },
-          mensaje:
-            'Sistema configurado correctamente. Ya puedes iniciar sesión.',
-        };
-      });
+          // Crear relación usuario-cooperativa
+          const usuarioCooperativa = await tx.usuarioCooperativa.create({
+            data: {
+              usuarioId: nuevoAdmin.id,
+              cooperativaId: nuevaCooperativa.id,
+              esEmpleado: true,
+            },
+          });
+
+          // 4. Asignar rol de Administrador
+          const rolAdmin = await tx.rol.findFirst({
+            where: {
+              cooperativaId: nuevaCooperativa.id,
+              nombre: 'Administrador',
+            },
+          });
+
+          if (rolAdmin) {
+            await tx.usuarioRol.create({
+              data: {
+                usuarioCooperativaId: usuarioCooperativa.id,
+                rolId: rolAdmin.id,
+              },
+            });
+          }
+
+          return {
+            cooperativa: {
+              id: nuevaCooperativa.id,
+              nombre: nuevaCooperativa.nombre,
+              cuit: nuevaCooperativa.cuit,
+            },
+            administrador: {
+              id: nuevoAdmin.id,
+              email: nuevoAdmin.email,
+              nombre: nuevoAdmin.nombre,
+              apellido: nuevoAdmin.apellido,
+            },
+            mensaje:
+              'Sistema configurado correctamente. Ya puedes iniciar sesión.',
+          };
+        },
+        {
+          timeout: 25000, // 25 segundos para bootstrap completo
+        },
+      );
     } catch (error: unknown) {
       if (this.isPrismaError(error, 'P2002')) {
         throw new ConflictException(
@@ -304,27 +318,83 @@ export class CooperativasService {
   }
 
   /**
+   * Configura los elementos iniciales de una cooperativa con progreso
+   */
+  private async configurarCooperativaInicialConProgreso(
+    tx: Prisma.TransactionClient,
+    cooperativaId: string,
+    sessionId: string,
+  ) {
+    this.progressService.emitStepStart(
+      sessionId,
+      'CREATE_SECTIONS',
+      'Creando secciones del sistema...',
+      35,
+    );
+
+    await this.crearSeccionesDefecto(tx, cooperativaId);
+
+    this.progressService.emitStepSuccess(
+      sessionId,
+      'CREATE_SECTIONS',
+      'Secciones creadas exitosamente',
+      45,
+    );
+
+    this.progressService.emitStepStart(
+      sessionId,
+      'CREATE_ROLES',
+      'Configurando roles y permisos...',
+      50,
+    );
+
+    await this.crearRolesDefecto(tx, cooperativaId);
+
+    this.progressService.emitStepSuccess(
+      sessionId,
+      'CREATE_ROLES',
+      'Roles y permisos configurados',
+      60,
+    );
+
+    this.progressService.emitStepStart(
+      sessionId,
+      'CREATE_ONBOARDING_CONFIG',
+      'Configurando onboarding...',
+      65,
+    );
+
+    await this.crearConfiguracionOnboardingDefecto(tx, cooperativaId);
+
+    this.progressService.emitStepSuccess(
+      sessionId,
+      'CREATE_ONBOARDING_CONFIG',
+      'Configuración de onboarding creada',
+      70,
+    );
+
+    return 200;
+  }
+
+  /**
    * Configura los elementos iniciales de una cooperativa
    */
   private async configurarCooperativaInicial(
-    tx: prismaTransaction,
+    tx: Prisma.TransactionClient,
     cooperativaId: string,
   ) {
-    // Crear secciones del sistema
     await this.crearSeccionesDefecto(tx, cooperativaId);
-
-    // Crear roles por defecto
     await this.crearRolesDefecto(tx, cooperativaId);
-
-    // Crear configuración de onboarding
     await this.crearConfiguracionOnboardingDefecto(tx, cooperativaId);
+
+    return 200;
   }
 
   /**
    * Crear secciones del sistema por defecto
    */
   private async crearSeccionesDefecto(
-    tx: prismaTransaction,
+    tx: Prisma.TransactionClient,
     cooperativaId: string,
   ) {
     const secciones = [
@@ -379,7 +449,7 @@ export class CooperativasService {
    * Crear roles por defecto
    */
   private async crearRolesDefecto(
-    tx: prismaTransaction,
+    tx: Prisma.TransactionClient,
     cooperativaId: string,
   ) {
     const roles = [
@@ -427,15 +497,15 @@ export class CooperativasService {
    * Asignar permisos por defecto según el rol
    */
   private async asignarPermisosDefecto(
-    tx: any,
+    tx: Prisma.TransactionClient,
     rolId: string,
     nombreRol: string,
     cooperativaId: string,
   ) {
     // Obtener todas las secciones
-    const secciones = await tx.seccionSistema.findMany({
+    const secciones: SeccionSistema[] = (await tx.seccionSistema.findMany({
       where: { cooperativaId },
-    });
+    })) as SeccionSistema[];
 
     const permisosPorRol = {
       Administrador: ['READ', 'WRITE', 'EXECUTE', 'DELETE'],
@@ -465,7 +535,7 @@ export class CooperativasService {
    * Crear configuración de onboarding por defecto
    */
   private async crearConfiguracionOnboardingDefecto(
-    tx: any,
+    tx: Prisma.TransactionClient,
     cooperativaId: string,
   ) {
     await tx.configuracionOnboarding.create({
@@ -496,9 +566,25 @@ export class CooperativasService {
   async solicitarAccesoCooperativa(data: SolicitudAccesoCooperativaDto) {
     const { cooperativa: cooperativaData, solicitante } = data;
 
+    // Generar ID de sesión para seguimiento de progreso
+    const sessionId = cooperativaData.cuit;
+
+    this.progressService.emitStepStart(
+      sessionId,
+      'VALIDATION',
+      'Validando datos de entrada...',
+      5,
+    );
+
     // Verificar que no existe una cooperativa con ese CUIT
     const existeCooperativa = await this.existeByCuit(cooperativaData.cuit);
     if (existeCooperativa) {
+      this.progressService.emitStepError(
+        sessionId,
+        'VALIDATION',
+        `Ya existe una cooperativa con el CUIT ${cooperativaData.cuit}`,
+        5,
+      );
       throw new ConflictException(
         `Ya existe una cooperativa con el CUIT ${cooperativaData.cuit}`,
       );
@@ -510,69 +596,157 @@ export class CooperativasService {
       select: { id: true },
     });
     if (existeUsuario) {
+      this.progressService.emitStepError(
+        sessionId,
+        'VALIDATION',
+        `Ya existe un usuario con el email ${solicitante.email}`,
+        5,
+      );
       throw new ConflictException(
         `Ya existe un usuario con el email ${solicitante.email}`,
       );
     }
 
+    this.progressService.emitStepSuccess(
+      sessionId,
+      'VALIDATION',
+      'Validación completada exitosamente',
+      10,
+    );
+
     try {
-      return await this.prisma.$transaction(async (tx) => {
-        // 1. Crear cooperativa en estado "PENDIENTE" (inactiva)
-        const nuevaCooperativa = await tx.cooperativa.create({
-          data: {
-            ...cooperativaData,
-            activa: false, // Inactiva hasta completar onboarding
-          },
-        });
+      return await this.prisma.$transaction(
+        async (prismaTransaction$) => {
+          this.progressService.emitStepStart(
+            sessionId,
+            'CREATE_COOPERATIVA',
+            'Creando cooperativa...',
+            15,
+          );
 
-        // 2. Crear configuración básica
-        await this.configurarCooperativaInicial(tx, nuevaCooperativa.id);
+          // 1. Crear cooperativa en estado inactiva hasta completar onboarding
+          const nuevaCooperativa = await prismaTransaction$.cooperativa.create({
+            data: {
+              ...cooperativaData,
+              activa: false,
+            },
+          });
 
-        // 3. Generar código de referencia único
-        const codigoReferencia = this.generarCodigoReferencia();
+          this.progressService.emitStepSuccess(
+            sessionId,
+            'CREATE_COOPERATIVA',
+            'Cooperativa creada exitosamente',
+            25,
+            { cooperativaId: nuevaCooperativa.id },
+          );
 
-        // 4. Crear proceso de onboarding simplificado
-        const procesoData = {
-          cooperativaId: nuevaCooperativa.id,
-          email: solicitante.email,
-          nombre: solicitante.nombre,
-          apellido: solicitante.apellido,
-          telefono: solicitante.telefono,
-          documento: solicitante.documento,
-          codigoReferencia,
-          fechaVencimiento: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000), // 45 días
-          pasosPendientes: [
-            'DATOS_PERSONALES',
-            'DOCUMENTACION_COOPERATIVA',
-            'DOCUMENTACION_PERSONAL',
-            'VERIFICACION_IDENTIDAD',
-            'VALIDACION_COOPERATIVA',
-            'ACEPTACION_TERMINOS',
-          ],
-          requiereAprobacion: true,
-          origenSolicitud: 'SOLICITUD_ACCESO_COOPERATIVA',
-        };
+          this.progressService.emitStepStart(
+            sessionId,
+            'SETUP_CONFIG',
+            'Configurando sistema inicial...',
+            30,
+          );
 
-        const procesoOnboarding = await tx.procesoOnboarding.create({
-          data: procesoData,
-        });
+          // 2. Crear configuración básica
+          await this.configurarCooperativaInicialConProgreso(
+            prismaTransaction$,
+            nuevaCooperativa.id,
+            sessionId,
+          );
 
-        return {
-          cooperativaId: nuevaCooperativa.id,
-          procesoOnboardingId: procesoOnboarding.id,
-          codigoReferencia: procesoOnboarding.codigoReferencia,
-          fechaVencimiento: procesoOnboarding.fechaVencimiento,
-          mensaje:
-            'Solicitud registrada. Te hemos enviado un email con los próximos pasos.',
-          proximosPasos: [
-            'Revisa tu email para continuar el proceso',
-            'Sube la documentación requerida',
-            'Completa la verificación de identidad',
-            'Espera la aprobación del equipo',
-          ],
-        };
-      });
+          this.progressService.emitStepSuccess(
+            sessionId,
+            'SETUP_CONFIG',
+            'Configuración inicial completada',
+            70,
+          );
+
+          this.progressService.emitStepStart(
+            sessionId,
+            'CREATE_ONBOARDING',
+            'Configurando proceso de onboarding...',
+            75,
+          );
+
+          // 3. Generar código de referencia único
+          const codigoReferencia = this.generarCodigoReferencia();
+
+          // 4. Crear proceso de onboarding simplificado
+          const procesoData = {
+            cooperativaId: nuevaCooperativa.id,
+            email: solicitante.email,
+            nombre: solicitante.nombre,
+            apellido: solicitante.apellido,
+            telefono: solicitante.telefono,
+            documento: solicitante.documento,
+            codigoReferencia,
+            fechaVencimiento: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000), // 45 días
+            pasosPendientes: [
+              'DATOS_PERSONALES',
+              'DOCUMENTACION_COOPERATIVA',
+              'DOCUMENTACION_PERSONAL',
+              'VERIFICACION_IDENTIDAD',
+              'VALIDACION_COOPERATIVA',
+              'ACEPTACION_TERMINOS',
+            ],
+            requiereAprobacion: true,
+            origenSolicitud: 'SOLICITUD_ACCESO_COOPERATIVA',
+          };
+
+          const procesoOnboarding =
+            await prismaTransaction$.procesoOnboarding.create({
+              data: procesoData,
+            });
+
+          this.progressService.emitStepSuccess(
+            sessionId,
+            'CREATE_ONBOARDING',
+            'Proceso de onboarding configurado',
+            90,
+          );
+
+          this.progressService.emitStepSuccess(
+            sessionId,
+            'COMPLETED',
+            'Solicitud registrada exitosamente',
+            100,
+            {
+              cooperativaId: nuevaCooperativa.id,
+              codigoReferencia: procesoOnboarding.codigoReferencia,
+            },
+          );
+
+          // TODO: Enviar email al solicitante con el código de referencia y próximos pasos
+
+          return {
+            sessionId, // Incluir sessionId en la respuesta
+            cooperativaId: nuevaCooperativa.id,
+            procesoOnboardingId: procesoOnboarding.id,
+            codigoReferencia: procesoOnboarding.codigoReferencia,
+            fechaVencimiento: procesoOnboarding.fechaVencimiento,
+            mensaje:
+              'Solicitud registrada. Te hemos enviado un email con los próximos pasos.',
+            proximosPasos: [
+              'Revisa tu email para continuar el proceso',
+              'Sube la documentación requerida',
+              'Completa la verificación de identidad',
+              'Espera la aprobación del equipo',
+            ],
+          };
+        },
+        {
+          timeout: 30000, // 30 segundos en lugar de 5 por defecto
+        },
+      );
     } catch (error: unknown) {
+      this.progressService.emitStepError(
+        sessionId,
+        'ERROR',
+        'Error durante el proceso de creación',
+        0,
+        error,
+      );
+
       if (this.isPrismaError(error, 'P2002')) {
         throw new ConflictException('Ya existe una solicitud con esos datos');
       }
@@ -783,99 +957,104 @@ export class CooperativasService {
 
     // eslint-disable-next-line no-useless-catch
     try {
-      return await this.prisma.$transaction(async (tx) => {
-        if (decision.aprobado) {
-          // Aprobar solicitud
-          await tx.procesoOnboarding.update({
-            where: { id: proceso.id },
-            data: {
-              estado: 'COMPLETADO',
-              observacionesInternas:
-                decision.observaciones ||
-                'Solicitud aprobada por Super Administrador',
-              fechaFinalizacion: new Date(),
-              usuarioAprobadorId: usuarioId,
-            },
-          });
-
-          // Activar la cooperativa
-          await tx.cooperativa.update({
-            where: { id: proceso.cooperativaId },
-            data: { activa: true },
-          });
-
-          // Crear usuario administrador
-          const hashPassword = 'temporal123'; // TODO: Generar password temporal y enviarlo por email
-
-          const nuevoAdmin = await tx.usuario.create({
-            data: {
-              email: proceso.email,
-              password: hashPassword,
-              nombre: proceso.nombre,
-              apellido: proceso.apellido,
-              telefono: proceso.telefono,
-            },
-          });
-
-          // Crear relación usuario-cooperativa
-          const usuarioCooperativa = await tx.usuarioCooperativa.create({
-            data: {
-              usuarioId: nuevoAdmin.id,
-              cooperativaId: proceso.cooperativaId,
-              esEmpleado: true,
-            },
-          });
-
-          // Asignar rol de Administrador
-          const rolAdmin = await tx.rol.findFirst({
-            where: {
-              cooperativaId: proceso.cooperativaId,
-              nombre: 'Administrador',
-            },
-          });
-
-          if (rolAdmin) {
-            await tx.usuarioRol.create({
+      return await this.prisma.$transaction(
+        async (tx) => {
+          if (decision.aprobado) {
+            // Aprobar solicitud
+            await tx.procesoOnboarding.update({
+              where: { id: proceso.id },
               data: {
-                usuarioCooperativaId: usuarioCooperativa.id,
-                rolId: rolAdmin.id,
+                estado: 'COMPLETADO',
+                observacionesInternas:
+                  decision.observaciones ||
+                  'Solicitud aprobada por Super Administrador',
+                fechaFinalizacion: new Date(),
+                usuarioAprobadorId: usuarioId,
               },
             });
+
+            // Activar la cooperativa
+            await tx.cooperativa.update({
+              where: { id: proceso.cooperativaId },
+              data: { activa: true },
+            });
+
+            // Crear usuario administrador
+            const hashPassword = 'temporal123'; // TODO: Generar password temporal y enviarlo por email
+
+            const nuevoAdmin = await tx.usuario.create({
+              data: {
+                email: proceso.email,
+                password: hashPassword,
+                nombre: proceso.nombre,
+                apellido: proceso.apellido,
+                telefono: proceso.telefono,
+              },
+            });
+
+            // Crear relación usuario-cooperativa
+            const usuarioCooperativa = await tx.usuarioCooperativa.create({
+              data: {
+                usuarioId: nuevoAdmin.id,
+                cooperativaId: proceso.cooperativaId,
+                esEmpleado: true,
+              },
+            });
+
+            // Asignar rol de Administrador
+            const rolAdmin = await tx.rol.findFirst({
+              where: {
+                cooperativaId: proceso.cooperativaId,
+                nombre: 'Administrador',
+              },
+            });
+
+            if (rolAdmin) {
+              await tx.usuarioRol.create({
+                data: {
+                  usuarioCooperativaId: usuarioCooperativa.id,
+                  rolId: rolAdmin.id,
+                },
+              });
+            }
+
+            return {
+              aprobado: true,
+              cooperativaId: proceso.cooperativaId,
+              administrador: {
+                id: nuevoAdmin.id,
+                email: nuevoAdmin.email,
+                nombre: nuevoAdmin.nombre,
+                apellido: nuevoAdmin.apellido,
+              },
+              mensaje:
+                'Solicitud aprobada. Cooperativa activada y administrador creado.',
+            };
+          } else {
+            // Rechazar solicitud
+            await tx.procesoOnboarding.update({
+              where: { id: proceso.id },
+              data: {
+                estado: 'RECHAZADO',
+                observacionesInternas:
+                  decision?.motivoRechazo ||
+                  'Solicitud rechazada por Super Administrador',
+                fechaFinalizacion: new Date(),
+                usuarioAprobadorId: usuarioId,
+              },
+            });
+
+            return {
+              aprobado: false,
+              motivo: decision.motivoRechazo,
+              mensaje: 'Solicitud rechazada.',
+            };
           }
-
-          return {
-            aprobado: true,
-            cooperativaId: proceso.cooperativaId,
-            administrador: {
-              id: nuevoAdmin.id,
-              email: nuevoAdmin.email,
-              nombre: nuevoAdmin.nombre,
-              apellido: nuevoAdmin.apellido,
-            },
-            mensaje:
-              'Solicitud aprobada. Cooperativa activada y administrador creado.',
-          };
-        } else {
-          // Rechazar solicitud
-          await tx.procesoOnboarding.update({
-            where: { id: proceso.id },
-            data: {
-              estado: 'RECHAZADO',
-              observacionesInternas:
-                decision?.motivoRechazo ||
-                'Solicitud rechazada por Super Administrador',
-              fechaFinalizacion: new Date(),
-              usuarioAprobadorId: usuarioId,
-            },
-          });
-
-          return {
-            aprobado: false,
-            motivo: decision.motivoRechazo,
-            mensaje: 'Solicitud rechazada.',
-          };
-        }
-      });
+        },
+        {
+          timeout: 20000, // 20 segundos para operaciones de aprobación
+        },
+      );
     } catch (error: unknown) {
       throw error;
     }
