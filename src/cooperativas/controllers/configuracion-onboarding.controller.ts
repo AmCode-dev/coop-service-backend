@@ -33,7 +33,9 @@ export class ConfiguracionOnboardingController {
   ) {
     // Solo SUPER_ADMIN puede gestionar configuraciones de onboarding
     if (!user.roles.some((r) => r.nombre === 'SUPER_ADMIN')) {
-      throw new Error('Solo los Super Administradores pueden gestionar configuraciones de onboarding');
+      throw new Error(
+        'Solo los Super Administradores pueden gestionar configuraciones de onboarding',
+      );
     }
 
     return this.configuracionService.obtenerConfiguracion(cooperativaId);
@@ -52,14 +54,16 @@ export class ConfiguracionOnboardingController {
   ) {
     // Solo SUPER_ADMIN puede gestionar configuraciones de onboarding
     if (!user.roles.some((r) => r.nombre === 'SUPER_ADMIN')) {
-      throw new Error('Solo los Super Administradores pueden modificar configuraciones de onboarding');
+      throw new Error(
+        'Solo los Super Administradores pueden modificar configuraciones de onboarding',
+      );
     }
 
     return this.configuracionService.actualizarConfiguracion(
       cooperativaId,
       datos,
     );
-  }  /**
+  } /**
    * Obtiene todas las reglas de onboarding
    * Solo SUPER_ADMIN puede acceder
    */
@@ -71,7 +75,9 @@ export class ConfiguracionOnboardingController {
   ) {
     // Solo SUPER_ADMIN puede gestionar configuraciones de onboarding
     if (!user.roles.some((r) => r.nombre === 'SUPER_ADMIN')) {
-      throw new Error('Solo los Super Administradores pueden gestionar reglas de onboarding');
+      throw new Error(
+        'Solo los Super Administradores pueden gestionar reglas de onboarding',
+      );
     }
 
     return this.configuracionService.obtenerReglas(cooperativaId);
@@ -90,7 +96,9 @@ export class ConfiguracionOnboardingController {
   ) {
     // Solo SUPER_ADMIN puede gestionar configuraciones de onboarding
     if (!user.roles.some((r) => r.nombre === 'SUPER_ADMIN')) {
-      throw new Error('Solo los Super Administradores pueden crear reglas de onboarding');
+      throw new Error(
+        'Solo los Super Administradores pueden crear reglas de onboarding',
+      );
     }
 
     return this.configuracionService.crearRegla(cooperativaId, datos);
@@ -109,7 +117,9 @@ export class ConfiguracionOnboardingController {
   ) {
     // Solo SUPER_ADMIN puede gestionar configuraciones de onboarding
     if (!user.roles.some((r) => r.nombre === 'SUPER_ADMIN')) {
-      throw new Error('Solo los Super Administradores pueden gestionar reglas de onboarding');
+      throw new Error(
+        'Solo los Super Administradores pueden gestionar reglas de onboarding',
+      );
     }
 
     return this.configuracionService.obtenerRegla(reglaId, cooperativaId);
@@ -129,7 +139,9 @@ export class ConfiguracionOnboardingController {
   ) {
     // Solo SUPER_ADMIN puede gestionar configuraciones de onboarding
     if (!user.roles.some((r) => r.nombre === 'SUPER_ADMIN')) {
-      throw new Error('Solo los Super Administradores pueden modificar reglas de onboarding');
+      throw new Error(
+        'Solo los Super Administradores pueden modificar reglas de onboarding',
+      );
     }
 
     return this.configuracionService.actualizarRegla(
@@ -152,7 +164,9 @@ export class ConfiguracionOnboardingController {
   ) {
     // Solo SUPER_ADMIN puede gestionar configuraciones de onboarding
     if (!user.roles.some((r) => r.nombre === 'SUPER_ADMIN')) {
-      throw new Error('Solo los Super Administradores pueden eliminar reglas de onboarding');
+      throw new Error(
+        'Solo los Super Administradores pueden eliminar reglas de onboarding',
+      );
     }
 
     return this.configuracionService.eliminarRegla(reglaId, cooperativaId);
@@ -171,7 +185,9 @@ export class ConfiguracionOnboardingController {
   ) {
     // Solo SUPER_ADMIN puede gestionar configuraciones de onboarding
     if (!user.roles.some((r) => r.nombre === 'SUPER_ADMIN')) {
-      throw new Error('Solo los Super Administradores pueden reordenar reglas de onboarding');
+      throw new Error(
+        'Solo los Super Administradores pueden reordenar reglas de onboarding',
+      );
     }
 
     return this.configuracionService.reordenarReglas(
@@ -192,7 +208,9 @@ export class ConfiguracionOnboardingController {
   ) {
     // Solo SUPER_ADMIN puede gestionar configuraciones de onboarding
     if (!user.roles.some((r) => r.nombre === 'SUPER_ADMIN')) {
-      throw new Error('Solo los Super Administradores pueden ver estadísticas de onboarding');
+      throw new Error(
+        'Solo los Super Administradores pueden ver estadísticas de onboarding',
+      );
     }
 
     return this.configuracionService.obtenerEstadisticas(cooperativaId);

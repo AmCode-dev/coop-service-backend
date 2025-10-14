@@ -12,6 +12,7 @@ import {
 import { PrismaClient, Prisma } from '@prisma/client';
 import { CooperativasProgressService } from './cooperativas-progress.service';
 import { v4 as uuidv4 } from 'uuid';
+import * as bcrypt from 'bcryptjs';
 export interface CreateCooperativaDto {
   nombre: string;
   razonSocial: string;
@@ -52,6 +53,7 @@ export interface SolicitudAccesoCooperativaDto {
     documento: string;
     tipoDocumento?: 'DNI' | 'PASAPORTE' | 'CEDULA';
     fechaNacimiento?: Date;
+    password: string;
   };
   // Información adicional de la solicitud
   motivoSolicitud?: string;
@@ -59,11 +61,6 @@ export interface SolicitudAccesoCooperativaDto {
   numeroSocios?: number;
   serviciosRequeridos?: string[];
 }
-
-type prismaTransaction = Omit<
-  PrismaClient,
-  '$connect' | '$disconnect' | '$on' | '$transaction' | '$extends'
->;
 
 @Injectable()
 export class CooperativasService {
@@ -566,7 +563,6 @@ export class CooperativasService {
   async solicitarAccesoCooperativa(data: SolicitudAccesoCooperativaDto) {
     const { cooperativa: cooperativaData, solicitante } = data;
 
-    // Generar ID de sesión para seguimiento de progreso
     const sessionId = cooperativaData.cuit;
 
     this.progressService.emitStepStart(
@@ -576,7 +572,6 @@ export class CooperativasService {
       5,
     );
 
-    // Verificar que no existe una cooperativa con ese CUIT
     const existeCooperativa = await this.existeByCuit(cooperativaData.cuit);
     if (existeCooperativa) {
       this.progressService.emitStepError(
@@ -590,7 +585,6 @@ export class CooperativasService {
       );
     }
 
-    // Verificar que no existe un usuario con ese email
     const existeUsuario = await this.prisma.usuario.findUnique({
       where: { email: solicitante.email },
       select: { id: true },
@@ -624,7 +618,6 @@ export class CooperativasService {
             15,
           );
 
-          // 1. Crear cooperativa en estado inactiva hasta completar onboarding
           const nuevaCooperativa = await prismaTransaction$.cooperativa.create({
             data: {
               ...cooperativaData,
@@ -647,7 +640,6 @@ export class CooperativasService {
             30,
           );
 
-          // 2. Crear configuración básica
           await this.configurarCooperativaInicialConProgreso(
             prismaTransaction$,
             nuevaCooperativa.id,
@@ -668,10 +660,8 @@ export class CooperativasService {
             75,
           );
 
-          // 3. Generar código de referencia único
           const codigoReferencia = this.generarCodigoReferencia();
 
-          // 4. Crear proceso de onboarding simplificado
           const procesoData = {
             cooperativaId: nuevaCooperativa.id,
             email: solicitante.email,
@@ -702,7 +692,58 @@ export class CooperativasService {
             sessionId,
             'CREATE_ONBOARDING',
             'Proceso de onboarding configurado',
-            90,
+            80,
+          );
+
+          this.progressService.emitStepStart(
+            sessionId,
+            'CREATE_ADMIN_USER',
+            'Creando usuario administrador...',
+            85,
+          );
+
+          const hashPassword = await bcrypt.hash(solicitante.password, 10);
+
+          const nuevoAdmin = await prismaTransaction$.usuario.create({
+            data: {
+              email: solicitante.email,
+              password: hashPassword,
+              nombre: solicitante.nombre,
+              apellido: solicitante.apellido,
+              telefono: solicitante.telefono,
+            },
+          });
+
+          const usuarioCooperativa =
+            await prismaTransaction$.usuarioCooperativa.create({
+              data: {
+                usuarioId: nuevoAdmin.id,
+                cooperativaId: nuevaCooperativa.id,
+                esEmpleado: true,
+              },
+            });
+
+          const rolAdmin = await prismaTransaction$.rol.findFirst({
+            where: {
+              cooperativaId: nuevaCooperativa.id,
+              nombre: 'Administrador',
+            },
+          });
+
+          if (rolAdmin) {
+            await prismaTransaction$.usuarioRol.create({
+              data: {
+                usuarioCooperativaId: usuarioCooperativa.id,
+                rolId: rolAdmin.id,
+              },
+            });
+          }
+
+          this.progressService.emitStepSuccess(
+            sessionId,
+            'CREATE_ADMIN_USER',
+            'Usuario administrador creado exitosamente',
+            95,
           );
 
           this.progressService.emitStepSuccess(
@@ -713,10 +754,11 @@ export class CooperativasService {
             {
               cooperativaId: nuevaCooperativa.id,
               codigoReferencia: procesoOnboarding.codigoReferencia,
+              administradorId: nuevoAdmin.id,
             },
           );
 
-          // TODO: Enviar email al solicitante con el código de referencia y próximos pasos
+          // TODO: Enviar email al solicitante con el código de referencia y credenciales
 
           return {
             sessionId, // Incluir sessionId en la respuesta
@@ -724,13 +766,20 @@ export class CooperativasService {
             procesoOnboardingId: procesoOnboarding.id,
             codigoReferencia: procesoOnboarding.codigoReferencia,
             fechaVencimiento: procesoOnboarding.fechaVencimiento,
+            administrador: {
+              id: nuevoAdmin.id,
+              email: nuevoAdmin.email,
+              nombre: nuevoAdmin.nombre,
+              apellido: nuevoAdmin.apellido,
+            },
             mensaje:
-              'Solicitud registrada. Te hemos enviado un email con los próximos pasos.',
+              'Solicitud registrada. Te hemos enviado un email con los próximos pasos y credenciales de acceso.',
             proximosPasos: [
               'Revisa tu email para continuar el proceso',
               'Sube la documentación requerida',
               'Completa la verificación de identidad',
               'Espera la aprobación del equipo',
+              'Una vez aprobado, podrás acceder con las credenciales enviadas',
             ],
           };
         },
