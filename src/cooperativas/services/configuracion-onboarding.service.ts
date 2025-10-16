@@ -94,9 +94,10 @@ export class ConfiguracionOnboardingService {
     cooperativaId: string,
     datos: ConfiguracionOnboardingDto,
   ) {
-    const configuracionExistente = await this.prisma.configuracionOnboarding.findUnique({
-      where: { cooperativaId },
-    });
+    const configuracionExistente =
+      await this.prisma.configuracionOnboarding.findUnique({
+        where: { cooperativaId },
+      });
 
     if (!configuracionExistente) {
       // Crear nueva configuración
@@ -134,7 +135,9 @@ export class ConfiguracionOnboardingService {
     });
 
     if (!regla) {
-      throw new NotFoundException(`Regla de onboarding con ID ${id} no encontrada`);
+      throw new NotFoundException(
+        `Regla de onboarding con ID ${id} no encontrada`,
+      );
     }
 
     return regla;
@@ -193,7 +196,10 @@ export class ConfiguracionOnboardingService {
   /**
    * Reordena las reglas de onboarding
    */
-  async reordenarReglas(cooperativaId: string, nuevosOrdenes: Array<{ id: string; orden: number }>) {
+  async reordenarReglas(
+    cooperativaId: string,
+    nuevosOrdenes: Array<{ id: string; orden: number }>,
+  ) {
     const transacciones = nuevosOrdenes.map(({ id, orden }) =>
       this.prisma.reglaOnboarding.update({
         where: { id },
@@ -230,7 +236,11 @@ export class ConfiguracionOnboardingService {
       activado: true,
       requiereAprobacionManual: false,
       tiempoLimiteOnboarding: 30,
-      pasosObligatorios: ['DATOS_PERSONALES', 'DOCUMENTACION', 'ACEPTACION_TERMINOS'],
+      pasosObligatorios: [
+        'DATOS_PERSONALES',
+        'DOCUMENTACION',
+        'ACEPTACION_TERMINOS',
+      ],
       pasosOpcionales: ['CONFIGURACION_SERVICIOS', 'ENCUESTA_BIENVENIDA'],
       documentosRequeridos: ['DNI', 'COMPROBANTE_DOMICILIO'],
       documentosOpcionales: ['COMPROBANTE_INGRESOS'],
@@ -265,7 +275,8 @@ export class ConfiguracionOnboardingService {
     const reglasDefecto: CrearReglaOnboardingDto[] = [
       {
         nombre: 'Validación de Email',
-        descripcion: 'Valida que el email proporcionado sea válido y esté disponible',
+        descripcion:
+          'Valida que el email proporcionado sea válido y esté disponible',
         tipoRegla: TipoReglaOnboarding.VALIDACION_DATOS,
         condiciones: {
           campos: ['email'],
@@ -280,7 +291,8 @@ export class ConfiguracionOnboardingService {
       },
       {
         nombre: 'Verificación de Identidad',
-        descripcion: 'Verifica la identidad del solicitante mediante documentos',
+        descripcion:
+          'Verifica la identidad del solicitante mediante documentos',
         tipoRegla: TipoReglaOnboarding.VERIFICACION_IDENTIDAD,
         condiciones: {
           documentosRequeridos: ['DNI'],
@@ -295,7 +307,8 @@ export class ConfiguracionOnboardingService {
       },
       {
         nombre: 'Creación de Cuenta Automática',
-        descripcion: 'Crea automáticamente la cuenta del usuario al completar el onboarding',
+        descripcion:
+          'Crea automáticamente la cuenta del usuario al completar el onboarding',
         tipoRegla: TipoReglaOnboarding.CREACION_CUENTA,
         condiciones: {
           onboardingCompletado: true,
@@ -340,12 +353,17 @@ export class ConfiguracionOnboardingService {
    * Obtiene estadísticas de configuración
    */
   async obtenerEstadisticas(cooperativaId: string) {
-    const [configuracion, totalReglas, reglasActivas, reglasInactivas] = await Promise.all([
-      this.obtenerConfiguracion(cooperativaId),
-      this.prisma.reglaOnboarding.count({ where: { cooperativaId } }),
-      this.prisma.reglaOnboarding.count({ where: { cooperativaId, activa: true } }),
-      this.prisma.reglaOnboarding.count({ where: { cooperativaId, activa: false } }),
-    ]);
+    const [configuracion, totalReglas, reglasActivas, reglasInactivas] =
+      await Promise.all([
+        this.obtenerConfiguracion(cooperativaId),
+        this.prisma.reglaOnboarding.count({ where: { cooperativaId } }),
+        this.prisma.reglaOnboarding.count({
+          where: { cooperativaId, activa: true },
+        }),
+        this.prisma.reglaOnboarding.count({
+          where: { cooperativaId, activa: false },
+        }),
+      ]);
 
     return {
       configuracion: {

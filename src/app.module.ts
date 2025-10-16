@@ -8,6 +8,7 @@ import { CooperativasModule } from './cooperativas/cooperativas.module';
 import { InmueblesModule } from './inmuebles/inmuebles.module';
 import { MedidoresModule } from './medidores/medidores.module';
 import { PersonasModule } from './personas/personas.module';
+import { MailerModule } from './mailer/mailer.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { PersonasModule } from './personas/personas.module';
     InmueblesModule,
     MedidoresModule,
     PersonasModule,
+    MailerModule,
   ],
   controllers: [AppController],
   providers: [AppService],

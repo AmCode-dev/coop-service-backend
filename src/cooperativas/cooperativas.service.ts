@@ -9,10 +9,16 @@ import {
   SeccionSistema,
   TipoAccion,
 } from '../../generated/prisma';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { CooperativasProgressService } from './cooperativas-progress.service';
-import { v4 as uuidv4 } from 'uuid';
 import * as bcrypt from 'bcryptjs';
+import { MailerService } from 'src/mailer/mailer.service';
+import {
+  OnboardingNextSteps,
+  OnboardingNextStepsDefault,
+  OnboardingStatusMessages,
+  OnboardingStatusMessagesDefault,
+} from './constants/onboarding';
 export interface CreateCooperativaDto {
   nombre: string;
   razonSocial: string;
@@ -60,6 +66,15 @@ export interface SolicitudAccesoCooperativaDto {
   tipoCooperativa?: string;
   numeroSocios?: number;
   serviciosRequeridos?: string[];
+}
+
+export interface CrearSuperAdminDto {
+  email: string;
+  password: string;
+  nombre: string;
+  apellido: string;
+  telefono?: string;
+  setupCode: string;
 }
 
 @Injectable()
@@ -433,6 +448,7 @@ export class CooperativasService {
     ];
 
     for (const seccion of secciones) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       await tx.seccionSistema.create({
         data: {
           ...seccion,
@@ -473,6 +489,7 @@ export class CooperativasService {
     ];
 
     for (const rol of roles) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       const rolCreado = await tx.rol.create({
         data: {
           ...rol,
@@ -483,6 +500,7 @@ export class CooperativasService {
       // Asignar permisos básicos según el rol
       await this.asignarPermisosDefecto(
         tx,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
         rolCreado.id,
         rol.nombre,
         cooperativaId,
@@ -500,6 +518,7 @@ export class CooperativasService {
     cooperativaId: string,
   ) {
     // Obtener todas las secciones
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     const secciones: SeccionSistema[] = (await tx.seccionSistema.findMany({
       where: { cooperativaId },
     })) as SeccionSistema[];
@@ -517,6 +536,7 @@ export class CooperativasService {
 
     for (const seccion of secciones) {
       for (const permiso of permisos) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
         await tx.rolPermiso.create({
           data: {
             rolId,
@@ -535,6 +555,7 @@ export class CooperativasService {
     tx: Prisma.TransactionClient,
     cooperativaId: string,
   ) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     await tx.configuracionOnboarding.create({
       data: {
         cooperativaId,
@@ -545,9 +566,11 @@ export class CooperativasService {
           'DATOS_PERSONALES',
           'DOCUMENTACION',
           'ACEPTACION_TERMINOS',
+          'VERIFICACION_IDENTIDAD',
+          'VALIDACION_DOCUMENTACION',
         ],
         pasosOpcionales: ['CONFIGURACION_SERVICIOS'],
-        documentosRequeridos: ['DNI'],
+        documentosRequeridos: ['DNI', 'ALTA_SOCIETARIA'],
         documentosOpcionales: ['COMPROBANTE_DOMICILIO'],
         requiereValidacionEmail: true,
         requiereValidacionTelefono: false,
@@ -660,7 +683,7 @@ export class CooperativasService {
             75,
           );
 
-          const codigoReferencia = this.generarCodigoReferencia();
+          const codigoReferencia = this._generarCodigoReferencia();
 
           const procesoData = {
             cooperativaId: nuevaCooperativa.id,
@@ -746,6 +769,22 @@ export class CooperativasService {
             95,
           );
 
+          await MailerService.sendEmail(
+            solicitante.email,
+            'Solicitud de acceso a la cooperativa',
+            'onboarding-initmail.html',
+            {
+              internalNotificationSubject:
+                'Solicitud de acceso a la cooperativa',
+              internalNotificationText: `Solicitud de acceso a la cooperativa ${procesoOnboarding.codigoReferencia}`,
+            },
+          );
+          this.progressService.emitStepSuccess(
+            sessionId,
+            'SEND_MAIL',
+            'Correo de notificación enviado exitosamente',
+            95,
+          );
           this.progressService.emitStepSuccess(
             sessionId,
             'COMPLETED',
@@ -757,8 +796,6 @@ export class CooperativasService {
               administradorId: nuevoAdmin.id,
             },
           );
-
-          // TODO: Enviar email al solicitante con el código de referencia y credenciales
 
           return {
             sessionId, // Incluir sessionId en la respuesta
@@ -795,7 +832,6 @@ export class CooperativasService {
         0,
         error,
       );
-
       if (this.isPrismaError(error, 'P2002')) {
         throw new ConflictException('Ya existe una solicitud con esos datos');
       }
@@ -841,15 +877,15 @@ export class CooperativasService {
         apellido: proceso.apellido,
         email: proceso.email,
       },
-      mensaje: this.generarMensajeEstado(proceso.estado),
-      siguientesPasos: this.generarSiguientesPasos(proceso.estado),
+      mensaje: this._generarMensajeEstado(proceso.estado),
+      siguientesPasos: this._generarSiguientesPasos(proceso.estado),
     };
   }
 
   /**
    * Generar código de referencia único
    */
-  private generarCodigoReferencia(): string {
+  private _generarCodigoReferencia(): string {
     const fecha = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const random = Math.random().toString(36).substring(2, 8).toUpperCase();
     return `COOP-${fecha}-${random}`;
@@ -858,255 +894,15 @@ export class CooperativasService {
   /**
    * Generar mensaje según el estado
    */
-  private generarMensajeEstado(estado: string): string {
-    switch (estado) {
-      case 'INICIADO':
-        return 'Tu solicitud ha sido iniciada. Continúa con los siguientes pasos.';
-      case 'EN_PROGRESO':
-        return 'Tu solicitud está en progreso. Continúa completando la documentación.';
-      case 'PENDIENTE_VALIDACION':
-        return 'Documentación recibida. Estamos validando la información.';
-      case 'PENDIENTE_APROBACION':
-        return 'Tu solicitud está siendo revisada por nuestro equipo.';
-      case 'COMPLETADO':
-        return '¡Felicitaciones! Tu cooperativa ha sido aprobada y ya puedes acceder al sistema.';
-      case 'RECHAZADO':
-        return 'Lamentablemente tu solicitud ha sido rechazada. Contacta al equipo de soporte.';
-      default:
-        return 'Estado de solicitud: ' + estado;
-    }
+  private _generarMensajeEstado(estado: string): string {
+    return OnboardingStatusMessages[estado] ?? OnboardingStatusMessagesDefault;
   }
 
   /**
    * Generar siguientes pasos según el estado
    */
-  private generarSiguientesPasos(estado: string): string[] {
-    switch (estado) {
-      case 'INICIADO':
-        return [
-          'Accede al proceso de onboarding con tu código de referencia',
-          'Completa tus datos personales',
-          'Sube la documentación de la cooperativa',
-        ];
-      case 'EN_PROGRESO':
-        return [
-          'Sube todos los documentos requeridos',
-          'Completa la verificación de identidad',
-          'Acepta los términos y condiciones',
-        ];
-      case 'PENDIENTE_VALIDACION':
-        return [
-          'Espera la validación de documentos',
-          'Responde a cualquier solicitud adicional por email',
-        ];
-      case 'PENDIENTE_APROBACION':
-        return [
-          'Tu solicitud está siendo revisada',
-          'Recibirás un email con la decisión final',
-        ];
-      case 'COMPLETADO':
-        return [
-          'Ya puedes acceder al sistema',
-          'Inicia sesión con las credenciales enviadas por email',
-        ];
-      case 'RECHAZADO':
-        return [
-          'Contacta al equipo de soporte para más información',
-          'Revisa los motivos del rechazo en tu email',
-        ];
-      default:
-        return ['Consulta el estado de tu solicitud regularmente'];
-    }
-  }
-
-  /**
-   * Listar todas las solicitudes de acceso pendientes (solo SUPER_ADMIN)
-   */
-  async listarSolicitudesPendientes() {
-    const solicitudes = await this.prisma.procesoOnboarding.findMany({
-      where: {
-        origenSolicitud: 'SOLICITUD_ACCESO_COOPERATIVA',
-        estado: {
-          in: [
-            'INICIADO',
-            'EN_PROGRESO',
-            'PENDIENTE_VALIDACION',
-            'PENDIENTE_APROBACION',
-          ],
-        },
-      },
-      include: {
-        cooperativa: {
-          select: {
-            nombre: true,
-            cuit: true,
-            domicilio: true,
-            localidad: true,
-            provincia: true,
-            activa: true,
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    return solicitudes.map((solicitud: any) => ({
-      procesoId: solicitud.id,
-      codigoReferencia: solicitud.codigoReferencia,
-      estado: solicitud.estado,
-      fechaCreacion: solicitud.createdAt,
-      fechaVencimiento: solicitud.fechaVencimiento,
-      cooperativa: {
-        nombre: solicitud.cooperativa.nombre,
-        cuit: solicitud.cooperativa.cuit,
-        domicilio: solicitud.cooperativa.domicilio,
-        localidad: solicitud.cooperativa.localidad,
-        provincia: solicitud.cooperativa.provincia,
-        activa: solicitud.cooperativa.activa,
-      },
-      solicitante: {
-        nombre: solicitud.nombre,
-        apellido: solicitud.apellido,
-        email: solicitud.email,
-        telefono: solicitud.telefono,
-      },
-      diasRestantes: Math.ceil(
-        (new Date(solicitud.fechaVencimiento || new Date()).getTime() -
-          Date.now()) /
-          (1000 * 60 * 60 * 24),
-      ),
-    }));
-  }
-
-  /**
-   * Decidir sobre una solicitud de acceso (aprobar/rechazar - solo SUPER_ADMIN)
-   */
-  async decidirSolicitudAcceso(
-    codigoReferencia: string,
-    decision: {
-      aprobado: boolean;
-      observaciones?: string;
-      motivoRechazo?: string;
-    },
-    usuarioId: string,
-  ) {
-    const proceso = await this.prisma.procesoOnboarding.findFirst({
-      where: {
-        codigoReferencia,
-        origenSolicitud: 'SOLICITUD_ACCESO_COOPERATIVA',
-      },
-      include: {
-        cooperativa: true,
-      },
-    });
-
-    if (!proceso) {
-      throw new NotFoundException('Solicitud no encontrada');
-    }
-
-    // eslint-disable-next-line no-useless-catch
-    try {
-      return await this.prisma.$transaction(
-        async (tx) => {
-          if (decision.aprobado) {
-            // Aprobar solicitud
-            await tx.procesoOnboarding.update({
-              where: { id: proceso.id },
-              data: {
-                estado: 'COMPLETADO',
-                observacionesInternas:
-                  decision.observaciones ||
-                  'Solicitud aprobada por Super Administrador',
-                fechaFinalizacion: new Date(),
-                usuarioAprobadorId: usuarioId,
-              },
-            });
-
-            // Activar la cooperativa
-            await tx.cooperativa.update({
-              where: { id: proceso.cooperativaId },
-              data: { activa: true },
-            });
-
-            // Crear usuario administrador
-            const hashPassword = 'temporal123'; // TODO: Generar password temporal y enviarlo por email
-
-            const nuevoAdmin = await tx.usuario.create({
-              data: {
-                email: proceso.email,
-                password: hashPassword,
-                nombre: proceso.nombre,
-                apellido: proceso.apellido,
-                telefono: proceso.telefono,
-              },
-            });
-
-            // Crear relación usuario-cooperativa
-            const usuarioCooperativa = await tx.usuarioCooperativa.create({
-              data: {
-                usuarioId: nuevoAdmin.id,
-                cooperativaId: proceso.cooperativaId,
-                esEmpleado: true,
-              },
-            });
-
-            // Asignar rol de Administrador
-            const rolAdmin = await tx.rol.findFirst({
-              where: {
-                cooperativaId: proceso.cooperativaId,
-                nombre: 'Administrador',
-              },
-            });
-
-            if (rolAdmin) {
-              await tx.usuarioRol.create({
-                data: {
-                  usuarioCooperativaId: usuarioCooperativa.id,
-                  rolId: rolAdmin.id,
-                },
-              });
-            }
-
-            return {
-              aprobado: true,
-              cooperativaId: proceso.cooperativaId,
-              administrador: {
-                id: nuevoAdmin.id,
-                email: nuevoAdmin.email,
-                nombre: nuevoAdmin.nombre,
-                apellido: nuevoAdmin.apellido,
-              },
-              mensaje:
-                'Solicitud aprobada. Cooperativa activada y administrador creado.',
-            };
-          } else {
-            // Rechazar solicitud
-            await tx.procesoOnboarding.update({
-              where: { id: proceso.id },
-              data: {
-                estado: 'RECHAZADO',
-                observacionesInternas:
-                  decision?.motivoRechazo ||
-                  'Solicitud rechazada por Super Administrador',
-                fechaFinalizacion: new Date(),
-                usuarioAprobadorId: usuarioId,
-              },
-            });
-
-            return {
-              aprobado: false,
-              motivo: decision.motivoRechazo,
-              mensaje: 'Solicitud rechazada.',
-            };
-          }
-        },
-        {
-          timeout: 20000, // 20 segundos para operaciones de aprobación
-        },
-      );
-    } catch (error: unknown) {
-      throw error;
-    }
+  private _generarSiguientesPasos(statusType: string): string[] {
+    return OnboardingNextSteps[statusType] ?? OnboardingNextStepsDefault;
   }
 
   private isPrismaError(error: unknown, code: string): boolean {

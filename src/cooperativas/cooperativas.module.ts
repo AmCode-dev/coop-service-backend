@@ -6,13 +6,14 @@ import { extname } from 'path';
 // Servicios
 import { CooperativasService } from './cooperativas.service';
 import { CooperativasProgressService } from './cooperativas-progress.service';
-import { OnboardingService } from './services/onboarding.service';
 import { ConfiguracionOnboardingService } from './services/configuracion-onboarding.service';
 
 // Controladores
-import { CooperativasController } from './controllers/cooperativas.controller';
-import { OnboardingController } from './controllers/onboarding.controller';
+
 import { ConfiguracionOnboardingController } from './controllers/configuracion-onboarding.controller';
+import { CooperativasSuperadminsService } from './cooperativas-superadmins.service';
+import { CooperativasController } from './controllers/cooperativas.controller';
+import { CooperativasSuperadminsController } from './controllers/cooperativas-superadmins.controller';
 
 @Module({
   imports: [
@@ -49,20 +50,20 @@ import { ConfiguracionOnboardingController } from './controllers/configuracion-o
   ],
   controllers: [
     CooperativasController,
-    OnboardingController,
     ConfiguracionOnboardingController,
+    CooperativasSuperadminsController,
   ],
   providers: [
     CooperativasService,
     CooperativasProgressService,
-    OnboardingService,
     ConfiguracionOnboardingService,
+    CooperativasSuperadminsService,
   ],
   exports: [
     CooperativasService,
     CooperativasProgressService,
-    OnboardingService,
     ConfiguracionOnboardingService,
+    CooperativasSuperadminsService,
   ],
 })
 export class CooperativasModule {}
