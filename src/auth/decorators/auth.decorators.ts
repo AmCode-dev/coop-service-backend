@@ -36,11 +36,14 @@ export const RequireRoles = (...roles: string[]) =>
  */
 export const CanRead = (section: string) => RequirePermissions(section, 'READ');
 
-export const CanWrite = (section: string) => RequirePermissions(section, 'WRITE');
+export const CanWrite = (section: string) =>
+  RequirePermissions(section, 'WRITE');
 
-export const CanDelete = (section: string) => RequirePermissions(section, 'DELETE');
+export const CanDelete = (section: string) =>
+  RequirePermissions(section, 'DELETE');
 
-export const CanExecute = (section: string) => RequirePermissions(section, 'EXECUTE');
+export const CanExecute = (section: string) =>
+  RequirePermissions(section, 'EXECUTE');
 
 /**
  * Decoradores para roles comunes
@@ -60,3 +63,14 @@ export const EmpleadoOnly = () => SetMetadata('empleadoOnly', true);
  * Permite acceso solo a socios de la cooperativa
  */
 export const SocioOnly = () => SetMetadata('socioOnly', true);
+
+/**
+ * Decorador para SUPER_ADMIN - Acceso global a todo el sistema
+ */
+export const RequireSuperAdmin = () => SetMetadata('requireSuperAdmin', true);
+
+/**
+ * Permite bypass de restricciones multi-tenant para SUPER_ADMIN
+ */
+export const AllowSuperAdminAccess = () =>
+  SetMetadata('allowSuperAdminAccess', true);

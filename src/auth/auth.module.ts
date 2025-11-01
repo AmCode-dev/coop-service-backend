@@ -5,12 +5,15 @@ import { APP_GUARD } from '@nestjs/core';
 
 import { AuthService } from './services/auth.service';
 import { RefreshTokenService } from './services/refresh-token.service';
+import { SuperAdminService } from './services/super-admin.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { AuthController } from './controllers/auth.controller';
+import { SuperAdminController } from './controllers/super-admin.controller';
 
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { PermissionGuard } from './guards/permission.guard';
 import { AuthGuard } from './guards/auth.guard';
+import { SuperAdminGuard } from './guards/super-admin.guard';
 
 @Global()
 @Module({
@@ -23,14 +26,16 @@ import { AuthGuard } from './guards/auth.guard';
       },
     }),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, SuperAdminController],
   providers: [
     AuthService,
     RefreshTokenService,
+    SuperAdminService,
     JwtStrategy,
     JwtAuthGuard,
     PermissionGuard,
     AuthGuard,
+    SuperAdminGuard,
     // Aplicar el guard de autenticación globalmente
     {
       provide: APP_GUARD,
@@ -40,9 +45,11 @@ import { AuthGuard } from './guards/auth.guard';
   exports: [
     AuthService,
     RefreshTokenService,
+    SuperAdminService,
     JwtAuthGuard,
     PermissionGuard,
     AuthGuard,
+    SuperAdminGuard,
   ],
 })
 export class AuthModule {}

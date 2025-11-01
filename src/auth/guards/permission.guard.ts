@@ -45,6 +45,11 @@ export class PermissionGuard implements CanActivate {
       );
     }
 
+    // 🚀 SUPER_ADMIN tiene acceso completo a todo - BYPASS COMPLETO
+    if (this.isSuperAdmin(user)) {
+      return true;
+    }
+
     // Verificar restricciones de empleado/socio
     const empleadoOnly = this.reflector.getAllAndOverride<boolean>(
       'empleadoOnly',
@@ -94,14 +99,14 @@ export class PermissionGuard implements CanActivate {
 
     if (requiredPermissions) {
       const { section, actions } = requiredPermissions;
-      
+
       for (const action of actions) {
         const hasPermission = this.authService.hasPermission(
           user,
           section,
           action,
         );
-        
+
         if (!hasPermission) {
           throw new ForbiddenException(
             AuthErrorResponse.insufficientPermissions(section, action, {
@@ -116,5 +121,17 @@ export class PermissionGuard implements CanActivate {
     }
 
     return true;
+  }
+
+  /**
+   * Verifica si un usuario es SUPER_ADMIN
+   * SUPER_ADMIN tiene acceso completo a todo el sistema
+   */
+  private isSuperAdmin(user: AuthenticatedUser): boolean {
+    return (
+      user.roles.some(
+        (role) => role.nombre === 'SUPER_ADMIN' || role.esSistema === true,
+      ) || user.permisos.some((permiso) => permiso.seccionCodigo === 'SYSTEM')
+    );
   }
 }
