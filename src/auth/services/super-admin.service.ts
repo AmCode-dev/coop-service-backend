@@ -38,7 +38,7 @@ export class SuperAdminService {
   /**
    * Obtener datos de cualquier cooperativa específica (solo SUPER_ADMIN)
    */
-  async getCooperativaById(cooperativaId: string) {
+  async getCooperativaById(cooperativaId: number) {
     return this.prisma.cooperativa.findUnique({
       where: { id: cooperativaId },
       include: {
@@ -158,7 +158,7 @@ export class SuperAdminService {
   /**
    * Cambiar estado de cualquier cooperativa (solo SUPER_ADMIN)
    */
-  async cambiarEstadoCooperativa(cooperativaId: string, activa: boolean) {
+  async cambiarEstadoCooperativa(cooperativaId: number, activa: boolean) {
     return this.prisma.cooperativa.update({
       where: { id: cooperativaId },
       data: { activa },

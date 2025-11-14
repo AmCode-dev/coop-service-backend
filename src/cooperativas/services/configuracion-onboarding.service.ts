@@ -74,7 +74,7 @@ export class ConfiguracionOnboardingService {
   /**
    * Obtiene la configuración de onboarding de una cooperativa
    */
-  async obtenerConfiguracion(cooperativaId: string) {
+  async obtenerConfiguracion(cooperativaId: number) {
     const configuracion = await this.prisma.configuracionOnboarding.findUnique({
       where: { cooperativaId },
     });
@@ -91,7 +91,7 @@ export class ConfiguracionOnboardingService {
    * Actualiza la configuración de onboarding
    */
   async actualizarConfiguracion(
-    cooperativaId: string,
+    cooperativaId: number,
     datos: ConfiguracionOnboardingDto,
   ) {
     const configuracionExistente =
@@ -119,7 +119,7 @@ export class ConfiguracionOnboardingService {
   /**
    * Obtiene todas las reglas de onboarding de una cooperativa
    */
-  async obtenerReglas(cooperativaId: string) {
+  async obtenerReglas(cooperativaId: number) {
     return this.prisma.reglaOnboarding.findMany({
       where: { cooperativaId },
       orderBy: [{ orden: 'asc' }, { createdAt: 'asc' }],
@@ -129,7 +129,7 @@ export class ConfiguracionOnboardingService {
   /**
    * Obtiene una regla específica
    */
-  async obtenerRegla(id: string, cooperativaId: string) {
+  async obtenerRegla(id: string, cooperativaId: number) {
     const regla = await this.prisma.reglaOnboarding.findFirst({
       where: { id, cooperativaId },
     });
@@ -146,7 +146,7 @@ export class ConfiguracionOnboardingService {
   /**
    * Crea una nueva regla de onboarding
    */
-  async crearRegla(cooperativaId: string, datos: CrearReglaOnboardingDto) {
+  async crearRegla(cooperativaId: number, datos: CrearReglaOnboardingDto) {
     // Obtener el siguiente orden
     const ultimaRegla = await this.prisma.reglaOnboarding.findFirst({
       where: { cooperativaId },
@@ -169,7 +169,7 @@ export class ConfiguracionOnboardingService {
    */
   async actualizarRegla(
     id: string,
-    cooperativaId: string,
+    cooperativaId: number,
     datos: ActualizarReglaOnboardingDto,
   ) {
     const regla = await this.obtenerRegla(id, cooperativaId);
@@ -183,7 +183,7 @@ export class ConfiguracionOnboardingService {
   /**
    * Elimina una regla de onboarding
    */
-  async eliminarRegla(id: string, cooperativaId: string) {
+  async eliminarRegla(id: string, cooperativaId: number) {
     const regla = await this.obtenerRegla(id, cooperativaId);
 
     await this.prisma.reglaOnboarding.delete({
@@ -197,7 +197,7 @@ export class ConfiguracionOnboardingService {
    * Reordena las reglas de onboarding
    */
   async reordenarReglas(
-    cooperativaId: string,
+    cooperativaId: number,
     nuevosOrdenes: Array<{ id: string; orden: number }>,
   ) {
     const transacciones = nuevosOrdenes.map(({ id, orden }) =>
@@ -215,7 +215,7 @@ export class ConfiguracionOnboardingService {
   /**
    * Obtiene las reglas activas para una etapa específica
    */
-  async obtenerReglasParaEtapa(cooperativaId: string, etapa: EtapaOnboarding) {
+  async obtenerReglasParaEtapa(cooperativaId: number, etapa: EtapaOnboarding) {
     return this.prisma.reglaOnboarding.findMany({
       where: {
         cooperativaId,
@@ -231,7 +231,7 @@ export class ConfiguracionOnboardingService {
   /**
    * Crea configuración por defecto para una cooperativa
    */
-  private async crearConfiguracionPorDefecto(cooperativaId: string) {
+  private async crearConfiguracionPorDefecto(cooperativaId: number) {
     const configuracionDefecto: ConfiguracionOnboardingDto = {
       activado: true,
       requiereAprobacionManual: false,
@@ -271,7 +271,7 @@ export class ConfiguracionOnboardingService {
   /**
    * Crea reglas por defecto para una cooperativa
    */
-  private async crearReglasDefecto(cooperativaId: string) {
+  private async crearReglasDefecto(cooperativaId: number) {
     const reglasDefecto: CrearReglaOnboardingDto[] = [
       {
         nombre: 'Validación de Email',
@@ -352,7 +352,7 @@ export class ConfiguracionOnboardingService {
   /**
    * Obtiene estadísticas de configuración
    */
-  async obtenerEstadisticas(cooperativaId: string) {
+  async obtenerEstadisticas(cooperativaId: number) {
     const [configuracion, totalReglas, reglasActivas, reglasInactivas] =
       await Promise.all([
         this.obtenerConfiguracion(cooperativaId),

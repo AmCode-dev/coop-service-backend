@@ -33,11 +33,11 @@ export class AuthService {
     // Buscar usuario y verificar que pertenece a la cooperativa
     const usuarioCooperativa = await this.prisma.usuarioCooperativa.findFirst({
       where: {
-        usuario: { 
+        usuario: {
           email,
-          activo: true 
+          activo: true,
         },
-        cooperativaId,
+        cooperativaId: Number(cooperativaId),
         activo: true,
       },
       include: {
@@ -65,21 +65,26 @@ export class AuthService {
         },
       },
     });
-
+    console.log(usuarioCooperativa);
     if (!usuarioCooperativa) {
       throw new UnauthorizedException(
         AuthErrorResponse.userNotFound('Credenciales inválidas'),
       );
     }
 
-    if (!usuarioCooperativa.cooperativa.activa) {
-      throw new UnauthorizedException(
-        AuthErrorResponse.invalidCooperativa('La cooperativa está inactiva'),
-      );
-    }
+    // if (usuarioCooperativa && !usuarioCooperativa.cooperativa.activa) {
+    //   throw new UnauthorizedException(
+    //     AuthErrorResponse.invalidCooperativa('La cooperativa está inactiva'),
+    //   );
+    // }
 
     // Verificar contraseña
-    const isPasswordValid = await bcrypt.compare(password, usuarioCooperativa.usuario.password);
+    const isPasswordValid = await bcrypt.compare(
+      password,
+      usuarioCooperativa.usuario.password,
+    );
+    console.log('isPasswordValid', isPasswordValid);
+
     if (!isPasswordValid) {
       throw new UnauthorizedException(
         AuthErrorResponse.unauthorized('Credenciales inválidas'),
@@ -97,12 +102,31 @@ export class AuthService {
 
     // Generar tokens
     const accessToken = this.jwtService.sign(payload);
-    
+
     // Generar refresh token
     const refreshToken = await this.refreshTokenService.generateRefreshToken(
       usuarioCooperativa.usuario.id,
       sessionInfo,
     );
+
+    console.log('Returned data', {
+      success: true,
+      accessToken,
+      refreshToken: refreshToken.token,
+      user: {
+        id: usuarioCooperativa.usuario.id,
+        email: usuarioCooperativa.usuario.email,
+        nombre: usuarioCooperativa.usuario.nombre,
+        apellido: usuarioCooperativa.usuario.apellido,
+        esEmpleado: usuarioCooperativa.esEmpleado,
+        cooperativa: {
+          id: usuarioCooperativa.cooperativa.id,
+          nombre: usuarioCooperativa.cooperativa.nombre,
+        },
+      },
+      expiresIn: 3600, // 1 hora para access token
+      refreshExpiresIn: 30 * 24 * 60 * 60, // 30 días para refresh token
+    });
 
     return {
       success: true,
@@ -127,11 +151,11 @@ export class AuthService {
   async validateUser(payload: JwtPayload): Promise<AuthenticatedUser | null> {
     const usuarioCooperativa = await this.prisma.usuarioCooperativa.findFirst({
       where: {
-        usuario: { 
+        usuario: {
           id: payload.sub,
-          activo: true 
+          activo: true,
         },
-        cooperativaId: payload.cooperativaId,
+        cooperativaId: Number(payload.cooperativaId),
         activo: true,
       },
       include: {
@@ -174,7 +198,7 @@ export class AuthService {
     usuarioCooperativa.roles.forEach((userRole) => {
       userRole.rol.permisos.forEach((rolePermiso) => {
         const sectionCode = rolePermiso.seccion.codigo;
-        
+
         if (!permissionsMap.has(sectionCode)) {
           permissionsMap.set(sectionCode, {
             seccionId: rolePermiso.seccion.id,
@@ -234,9 +258,9 @@ export class AuthService {
     // Obtener información del usuario
     const usuarioCooperativa = await this.prisma.usuarioCooperativa.findFirst({
       where: {
-        usuario: { 
-          id: (newRefreshToken as any).usuarioId,
-          activo: true 
+        usuario: {
+          id: newRefreshToken.usuarioId,
+          activo: true,
         },
         activo: true,
       },
@@ -257,10 +281,12 @@ export class AuthService {
       },
     });
 
-    if (!usuarioCooperativa || !usuarioCooperativa.usuario.activo || !usuarioCooperativa.cooperativa.activa) {
-      await this.refreshTokenService.revokeRefreshToken(
-        (newRefreshToken as any).id,
-      );
+    if (
+      !usuarioCooperativa ||
+      !usuarioCooperativa.usuario.activo ||
+      !usuarioCooperativa.cooperativa.activa
+    ) {
+      await this.refreshTokenService.revokeRefreshToken(newRefreshToken.id);
       throw new UnauthorizedException(
         AuthErrorResponse.unauthorized('Usuario o cooperativa inactivos'),
       );
@@ -281,7 +307,7 @@ export class AuthService {
     return {
       success: true,
       accessToken,
-      refreshToken: (newRefreshToken as any).token,
+      refreshToken: newRefreshToken.token,
       user: {
         id: usuarioCooperativa.usuario.id,
         email: usuarioCooperativa.usuario.email,
@@ -324,10 +350,7 @@ export class AuthService {
   /**
    * Revoca una sesión específica de un usuario
    */
-  async revokeUserSession(
-    userId: string,
-    sessionId: string,
-  ): Promise<boolean> {
+  async revokeUserSession(userId: string, sessionId: string): Promise<boolean> {
     return this.refreshTokenService.revokeUserSession(userId, sessionId);
   }
 
@@ -354,7 +377,7 @@ export class AuthService {
     const permission = user.permisos.find(
       (p) => p.seccionCodigo === sectionCode,
     );
-    
+
     if (!permission) {
       return false;
     }
@@ -376,7 +399,7 @@ export class AuthService {
    */
   belongsToCooperativa(
     user: AuthenticatedUser,
-    cooperativaId: string,
+    cooperativaId: number,
   ): boolean {
     return user.cooperativaId === cooperativaId;
   }
@@ -443,7 +466,10 @@ export class AuthService {
     }
 
     // Verificar contraseña
-    const isPasswordValid = await bcrypt.compare(password, usuarioCooperativa.usuario.password);
+    const isPasswordValid = await bcrypt.compare(
+      password,
+      usuarioCooperativa.usuario.password,
+    );
     if (!isPasswordValid) {
       throw new UnauthorizedException(
         AuthErrorResponse.unauthorized('Credenciales de SUPER_ADMIN inválidas'),
@@ -451,10 +477,11 @@ export class AuthService {
     }
 
     // Verificar que el usuario tenga rol de SUPER_ADMIN o permisos de SYSTEM
-    const isSuperAdmin = usuarioCooperativa.roles.some((ur) => 
-      ur.rol.nombre === 'SUPER_ADMIN' || 
-      ur.rol.esSistema === true ||
-      ur.rol.permisos.some((p) => p.seccion.codigo === 'SYSTEM')
+    const isSuperAdmin = usuarioCooperativa.roles.some(
+      (ur) =>
+        ur.rol.nombre === 'SUPER_ADMIN' ||
+        ur.rol.esSistema === true ||
+        ur.rol.permisos.some((p) => p.seccion.codigo === 'SYSTEM'),
     );
 
     if (!isSuperAdmin) {
@@ -469,14 +496,17 @@ export class AuthService {
       email: usuarioCooperativa.usuario.email,
       cooperativaId: usuarioCooperativa.cooperativaId,
       esEmpleado: true,
-      roles: ['SUPER_ADMIN', ...usuarioCooperativa.roles.map((ur) => ur.rol.nombre)],
+      roles: [
+        'SUPER_ADMIN',
+        ...usuarioCooperativa.roles.map((ur) => ur.rol.nombre),
+      ],
     };
 
     // Generar tokens con tiempo extendido para SUPER_ADMIN
     const accessToken = this.jwtService.sign(payload, {
       expiresIn: process.env.SUPER_ADMIN_JWT_EXPIRES_IN || '8h', // 8 horas por defecto
     });
-    
+
     // Generar refresh token
     const refreshToken = await this.refreshTokenService.generateRefreshToken(
       usuarioCooperativa.usuario.id,
@@ -496,7 +526,7 @@ export class AuthService {
     return {
       success: true,
       accessToken,
-      refreshToken: (refreshToken as any).token,
+      refreshToken: refreshToken.token,
       user: {
         id: usuarioCooperativa.usuario.id,
         email: usuarioCooperativa.usuario.email,
@@ -509,7 +539,7 @@ export class AuthService {
         'COOPERATIVAS_MANAGEMENT',
         'ONBOARDING_MANAGEMENT',
         'USER_MANAGEMENT',
-        ...allPermissions.map(p => p.codigo.toUpperCase()),
+        ...allPermissions.map((p) => p.codigo.toUpperCase()),
       ],
       expiresIn: 8 * 60 * 60, // 8 horas
       refreshExpiresIn: 30 * 24 * 60 * 60, // 30 días

@@ -2,8 +2,6 @@ import {
   Controller,
   Get,
   Post,
-  Put,
-  Delete,
   Body,
   Param,
   Query,
@@ -23,12 +21,7 @@ import {
 } from '../../auth/decorators/auth.decorators';
 import { GetUser } from '../../auth/decorators/user.decorators';
 import type { AuthenticatedUser } from '../../auth/interfaces/auth.interface';
-import type {
-  CreateCooperativaDto,
-  UpdateCooperativaDto,
-  BootstrapCooperativaDto,
-  SolicitudAccesoCooperativaDto,
-} from '../cooperativas.service';
+import type { SolicitudAccesoCooperativaDto } from '../cooperativas.service';
 
 @Controller('cooperativas')
 @UseGuards(JwtAuthGuard)
@@ -95,7 +88,6 @@ export class CooperativasController {
         } as MessageEvent);
       };
 
-      // Función para emitir error y cerrar
       const emitError = (error: unknown) => {
         emitEvent({
           sessionId,
@@ -208,9 +200,9 @@ export class CooperativasController {
   @Get(':id')
   @RequirePermissions('COOPERATIVAS', 'READ')
   async findOne(@Param('id') id: string, @GetUser() user: AuthenticatedUser) {
-    // Los usuarios solo pueden ver su propia cooperativa
+    const parseredId = parseInt(id);
     if (
-      user.cooperativaId !== id &&
+      user.cooperativaId !== parseredId &&
       !user.roles.some((r) => r.nombre === 'SUPER_ADMIN')
     ) {
       throw new Error('No autorizado para ver esta cooperativa');
@@ -218,66 +210,7 @@ export class CooperativasController {
 
     return {
       success: true,
-      data: await this.cooperativasService.findOne(id),
-    };
-  }
-
-  /**
-   * Crea una nueva cooperativa
-   */
-  @Post()
-  @RequirePermissions('COOPERATIVAS', 'CREATE')
-  @HttpCode(HttpStatus.CREATED)
-  async create(@Body() createCooperativaDto: CreateCooperativaDto) {
-    return {
-      success: true,
-      data: await this.cooperativasService.create(createCooperativaDto),
-      message: 'Cooperativa creada exitosamente',
-    };
-  }
-
-  /**
-   * Actualiza una cooperativa
-   */
-  @Put(':id')
-  @RequirePermissions('COOPERATIVAS', 'UPDATE')
-  async update(
-    @Param('id') id: string,
-    @Body() updateCooperativaDto: UpdateCooperativaDto,
-    @GetUser() user: AuthenticatedUser,
-  ) {
-    // Los usuarios solo pueden actualizar su propia cooperativa
-    if (
-      user.cooperativaId !== id &&
-      !user.roles.some((r) => r.nombre === 'SUPER_ADMIN')
-    ) {
-      throw new Error('No autorizado para actualizar esta cooperativa');
-    }
-
-    return {
-      success: true,
-      data: await this.cooperativasService.update(id, updateCooperativaDto),
-      message: 'Cooperativa actualizada exitosamente',
-    };
-  }
-
-  /**
-   * Elimina (desactiva) una cooperativa
-   */
-  @Delete(':id')
-  @RequirePermissions('COOPERATIVAS', 'DELETE')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id') id: string, @GetUser() user: AuthenticatedUser) {
-    // Solo super admin puede eliminar cooperativas
-    if (!user.roles.some((r) => r.nombre === 'SUPER_ADMIN')) {
-      throw new Error('No autorizado para eliminar cooperativas');
-    }
-
-    await this.cooperativasService.remove(id);
-
-    return {
-      success: true,
-      message: 'Cooperativa desactivada exitosamente',
+      data: await this.cooperativasService.findOne(parseredId),
     };
   }
 
@@ -300,8 +233,9 @@ export class CooperativasController {
   @RequirePermissions('COOPERATIVAS', 'READ')
   async getStats(@Param('id') id: string, @GetUser() user: AuthenticatedUser) {
     // Los usuarios solo pueden ver estadísticas de su propia cooperativa
+    const parseredId = parseInt(id);
     if (
-      user.cooperativaId !== id &&
+      user.cooperativaId !== parseredId &&
       !user.roles.some((r) => r.nombre === 'SUPER_ADMIN')
     ) {
       throw new Error(
@@ -311,7 +245,7 @@ export class CooperativasController {
 
     return {
       success: true,
-      data: await this.cooperativasService.getStats(id),
+      data: await this.cooperativasService.getStats(parseredId),
     };
   }
 
@@ -337,21 +271,6 @@ export class CooperativasController {
   }
 
   /**
-   * Endpoint público para bootstrap: crear cooperativa + admin inicial
-   * Este endpoint NO requiere autenticación
-   */
-  @Public()
-  @Post('bootstrap')
-  @HttpCode(HttpStatus.CREATED)
-  async bootstrapCooperativa(@Body() bootstrapDto: BootstrapCooperativaDto) {
-    return {
-      success: true,
-      data: await this.cooperativasService.bootstrapCooperativa(bootstrapDto),
-      message: 'Cooperativa y administrador creados exitosamente',
-    };
-  }
-
-  /**
    * Solicitar acceso: Inicia proceso de onboarding para una nueva cooperativa
    * Este endpoint permite que una cooperativa solicite acceso al sistema
    * a través del proceso completo de onboarding con validaciones
@@ -360,7 +279,6 @@ export class CooperativasController {
   @Post('solicitar-acceso')
   @HttpCode(HttpStatus.CREATED)
   async solicitarAcceso(@Body() solicitudDto: SolicitudAccesoCooperativaDto) {
-    console.log('Solicitud de acceso recibida:', solicitudDto);
     return {
       success: true,
       data: await this.cooperativasService.solicitarAccesoCooperativa(

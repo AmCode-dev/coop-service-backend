@@ -3,7 +3,7 @@ import { TipoAccion } from '../../../generated/prisma';
 export interface JwtPayload {
   sub: string; // userId
   email: string;
-  cooperativaId: string;
+  cooperativaId: number | string;
   esEmpleado: boolean;
   roles: string[];
   iat?: number;
@@ -15,7 +15,7 @@ export interface AuthenticatedUser {
   email: string;
   nombre: string;
   apellido: string;
-  cooperativaId: string;
+  cooperativaId: number;
   esEmpleado: boolean;
   activo: boolean;
   roles: UserRole[];
@@ -40,7 +40,7 @@ export interface UserPermission {
 export interface LoginDto {
   email: string;
   password: string;
-  cooperativaId?: string; // Opcional si el email es único globalmente
+  cooperativaId?: number; // Opcional si el email es único globalmente
 }
 
 export interface SuperAdminLoginDto {
@@ -76,7 +76,7 @@ export interface AuthResponse {
     apellido: string;
     esEmpleado: boolean;
     cooperativa: {
-      id: string;
+      id: number;
       nombre: string;
     };
   };

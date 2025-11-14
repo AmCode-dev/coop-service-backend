@@ -29,7 +29,7 @@ export const GetUserId = createParamDecorator(
  * Obtiene solo el ID de la cooperativa del usuario autenticado
  */
 export const GetCooperativaId = createParamDecorator(
-  (data: unknown, ctx: ExecutionContext): string => {
+  (data: unknown, ctx: ExecutionContext): number => {
     const request = ctx.switchToHttp().getRequest<RequestWithUser>();
     return request.user?.cooperativaId;
   },
@@ -72,9 +72,9 @@ export const GetUserInfo = createParamDecorator(
   (data: unknown, ctx: ExecutionContext) => {
     const request = ctx.switchToHttp().getRequest<RequestWithUser>();
     const user = request.user;
-    
+
     if (!user) return null;
-    
+
     return {
       userId: user.id,
       email: user.email,

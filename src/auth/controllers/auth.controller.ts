@@ -41,7 +41,8 @@ export class AuthController {
       ipAddress: req.ip || req.connection.remoteAddress || 'Unknown',
       deviceId: req.headers['x-device-id'] as string,
     };
-
+    console.log(sessionInfo);
+    console.log(loginDto);
     return this.authService.login(loginDto, sessionInfo);
   }
 

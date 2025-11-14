@@ -27,6 +27,7 @@ import {
   AsociarCuentaDto,
   DeshabilitarInmuebleDto,
 } from '../dto';
+import { EstadoLegajo } from 'generated/prisma';
 
 @Controller('cooperativas/:cooperativaId/inmuebles')
 @UseGuards(JwtAuthGuard)
@@ -48,8 +49,9 @@ export class InmueblesController {
     @Body() createInmuebleDto: CreateInmuebleDto,
     @GetUser() user: AuthenticatedUser,
   ) {
+    const parseredCooperativaId = parseInt(cooperativaId);
     return this.inmueblesService.crearInmueble(
-      cooperativaId,
+      parseredCooperativaId,
       createInmuebleDto,
       user.id,
     );
@@ -75,8 +77,9 @@ export class InmueblesController {
         ),
     );
 
+    const parseredCooperativaId = parseInt(cooperativaId);
     return this.inmueblesService.obtenerInmuebles(
-      cooperativaId,
+      parseredCooperativaId,
       filtros,
       user.id,
       esAdmin,
@@ -93,6 +96,8 @@ export class InmueblesController {
     @Param('inmuebleId') inmuebleId: string,
     @GetUser() user: AuthenticatedUser,
   ) {
+    const parseredInmuebleId = parseInt(inmuebleId);
+    const parseredCooperativaId = parseInt(cooperativaId);
     const esAdmin = user.roles?.some(
       (rol) =>
         rol.nombre === 'Administrador' ||
@@ -104,8 +109,8 @@ export class InmueblesController {
     );
 
     return this.inmueblesService.obtenerInmueblePorId(
-      inmuebleId,
-      cooperativaId,
+      parseredInmuebleId,
+      parseredCooperativaId,
       user.id,
       esAdmin,
     );
@@ -124,9 +129,12 @@ export class InmueblesController {
     @Body() updateInmuebleDto: UpdateInmuebleDto,
     @GetUser() user: AuthenticatedUser,
   ) {
+    const parseredInmuebleId = parseInt(inmuebleId);
+    const parseredCooperativaId = parseInt(cooperativaId);
+
     return this.inmueblesService.actualizarInmueble(
-      inmuebleId,
-      cooperativaId,
+      parseredInmuebleId,
+      parseredCooperativaId,
       updateInmuebleDto,
       user.id,
     );
@@ -145,9 +153,12 @@ export class InmueblesController {
     @Body() deshabilitarDto: DeshabilitarInmuebleDto,
     @GetUser() user: AuthenticatedUser,
   ) {
+    const parseredInmuebleId = parseInt(inmuebleId);
+    const parseredCooperativaId = parseInt(cooperativaId);
+
     return this.inmueblesService.deshabilitarInmueble(
-      inmuebleId,
-      cooperativaId,
+      parseredInmuebleId,
+      parseredCooperativaId,
       deshabilitarDto.motivo,
       user.id,
     );
@@ -166,9 +177,11 @@ export class InmueblesController {
     @Body() transferirDto: TransferenciaTitularidadDto,
     @GetUser() user: AuthenticatedUser,
   ) {
+    const parseredInmuebleId = parseInt(inmuebleId);
+    const parseredCooperativaId = parseInt(cooperativaId);
     return this.inmueblesService.transferirTitularidad(
-      inmuebleId,
-      cooperativaId,
+      parseredInmuebleId,
+      parseredCooperativaId,
       transferirDto,
       user.id,
     );
@@ -187,9 +200,12 @@ export class InmueblesController {
     @Body() asociarCuentaDto: AsociarCuentaDto,
     @GetUser() user: AuthenticatedUser,
   ) {
+    const parseredInmuebleId = parseInt(inmuebleId);
+    const parseredCooperativaId = parseInt(cooperativaId);
+
     return this.inmueblesService.asociarCuenta(
-      inmuebleId,
-      cooperativaId,
+      parseredInmuebleId,
+      parseredCooperativaId,
       asociarCuentaDto,
       user.id,
     );
@@ -208,10 +224,12 @@ export class InmueblesController {
     @Param('cuentaId') cuentaId: string,
     @GetUser() user: AuthenticatedUser,
   ) {
+    const parseredInmuebleId = parseInt(inmuebleId);
+    const parseredCooperativaId = parseInt(cooperativaId);
     return this.inmueblesService.desvincularCuenta(
-      inmuebleId,
+      parseredInmuebleId,
       cuentaId,
-      cooperativaId,
+      parseredCooperativaId,
       user.id,
     );
   }
@@ -229,7 +247,12 @@ export class InmueblesController {
     @Param('cooperativaId') cooperativaId: string,
     @Param('inmuebleId') inmuebleId: string,
   ) {
-    return this.legajosService.obtenerLegajoPorInmueble(inmuebleId, cooperativaId);
+    const parseredCooperativaId = parseInt(cooperativaId);
+    const parseredInmuebleId = parseInt(inmuebleId);
+    return this.legajosService.obtenerLegajoPorInmueble(
+      parseredInmuebleId,
+      parseredCooperativaId,
+    );
   }
 
   /**
@@ -247,12 +270,15 @@ export class InmueblesController {
     @UploadedFile() archivo: Express.Multer.File,
     @GetUser() user: AuthenticatedUser,
   ) {
+    const parseredCooperativaId = parseInt(cooperativaId);
+    const parseredInmuebleId = parseInt(inmuebleId);
     // Primero obtener el legajo
     const legajo = await this.legajosService.obtenerLegajoPorInmueble(
-      inmuebleId,
-      cooperativaId,
+      parseredInmuebleId,
+      parseredCooperativaId,
     );
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const documentoDto = {
       ...documentoData,
       archivo,
@@ -294,13 +320,16 @@ export class InmueblesController {
   async agregarAnotacion(
     @Param('cooperativaId') cooperativaId: string,
     @Param('inmuebleId') inmuebleId: string,
-    @Body() anotacionData: { titulo?: string; contenido: string; importante?: boolean },
+    @Body()
+    anotacionData: { titulo?: string; contenido: string; importante?: boolean },
     @GetUser() user: AuthenticatedUser,
   ) {
+    const parseredInmuebleId = parseInt(inmuebleId);
+    const parseredCooperativaId = parseInt(cooperativaId);
     // Primero obtener el legajo
     const legajo = await this.legajosService.obtenerLegajoPorInmueble(
-      inmuebleId,
-      cooperativaId,
+      parseredInmuebleId,
+      parseredCooperativaId,
     );
 
     return this.legajosService.agregarAnotacion(
@@ -315,10 +344,10 @@ export class InmueblesController {
    * Todos los usuarios de la cooperativa pueden ver historial
    */
   @Get(':inmuebleId/historial-titularidad')
-  async obtenerHistorialTitularidad(
-    @Param('inmuebleId') inmuebleId: string,
-  ) {
-    return this.legajosService.obtenerHistorialTitularidad(inmuebleId);
+  async obtenerHistorialTitularidad(@Param('inmuebleId') inmuebleId: string) {
+    const parseredInmuebleId = parseInt(inmuebleId);
+
+    return this.legajosService.obtenerHistorialTitularidad(parseredInmuebleId);
   }
 
   /**
@@ -331,13 +360,16 @@ export class InmueblesController {
   async cambiarEstadoLegajo(
     @Param('cooperativaId') cooperativaId: string,
     @Param('inmuebleId') inmuebleId: string,
-    @Body() estadoData: { estado: string; observaciones?: string },
+    @Body() estadoData: { estado: EstadoLegajo; observaciones?: string },
     @GetUser() user: AuthenticatedUser,
   ) {
+    const parseredCooperativaId = parseInt(cooperativaId);
+    const parseredInmuebleId = parseInt(inmuebleId);
+
     // Primero obtener el legajo
     const legajo = await this.legajosService.obtenerLegajoPorInmueble(
-      inmuebleId,
-      cooperativaId,
+      parseredInmuebleId,
+      parseredCooperativaId,
     );
 
     return this.legajosService.cambiarEstadoLegajo(

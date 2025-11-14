@@ -2,7 +2,6 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-  ForbiddenException,
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -13,10 +12,9 @@ import {
   TransferenciaTitularidadDto,
   AsociarCuentaDto,
 } from '../dto';
-import type { Prisma } from '../../../generated/prisma';
 
 export interface InmuebleCompleto {
-  id: string;
+  id: number;
   domicilio: string;
   piso?: string | null;
   codigoPostal: string;
@@ -60,7 +58,7 @@ export class InmueblesService {
    * Solo usuarios con permisos de EXECUTE en inmuebles o administradores
    */
   async crearInmueble(
-    cooperativaId: string,
+    cooperativaId: number,
     data: CreateInmuebleDto,
     usuarioId: string,
   ): Promise<InmuebleCompleto> {
@@ -117,12 +115,19 @@ export class InmueblesService {
    * Obtener todos los inmuebles con filtros y paginación
    */
   async obtenerInmuebles(
-    cooperativaId: string,
+    cooperativaId: number,
     filtros: InmuebleFilterDto,
     usuarioId?: string,
     esAdmin: boolean = false,
   ): Promise<ResultadoPaginado<InmuebleCompleto>> {
-    const { page = 1, limit = 20, sortBy = 'createdAt', sortOrder = 'desc', search, ...otrosFiltros } = filtros;
+    const {
+      page = 1,
+      limit = 20,
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
+      search,
+      ...otrosFiltros
+    } = filtros;
 
     const offset = (page - 1) * limit;
 
@@ -229,8 +234,8 @@ export class InmueblesService {
    * Obtener un inmueble por ID
    */
   async obtenerInmueblePorId(
-    inmuebleId: string,
-    cooperativaId: string,
+    inmuebleId: number,
+    cooperativaId: number,
     usuarioId?: string,
     esAdmin: boolean = false,
   ): Promise<InmuebleCompleto> {
@@ -327,8 +332,8 @@ export class InmueblesService {
    * Solo usuarios con permisos de EXECUTE en inmuebles o administradores
    */
   async actualizarInmueble(
-    inmuebleId: string,
-    cooperativaId: string,
+    inmuebleId: number,
+    cooperativaId: number,
     data: UpdateInmuebleDto,
     usuarioId: string,
   ): Promise<InmuebleCompleto> {
@@ -339,6 +344,10 @@ export class InmueblesService {
       usuarioId,
       true, // Admin check se hace en el controller
     );
+
+    if (!inmuebleExistente) {
+      throw new NotFoundException('El inmueble no existe');
+    }
 
     // Si se está cambiando el titular, verificar que existe
     if (data.titularInmuebleId) {
@@ -370,8 +379,8 @@ export class InmueblesService {
    * Solo usuarios con permisos de EXECUTE en inmuebles o administradores
    */
   async deshabilitarInmueble(
-    inmuebleId: string,
-    cooperativaId: string,
+    inmuebleId: number,
+    cooperativaId: number,
     motivo?: string,
     usuarioId?: string,
   ): Promise<{ mensaje: string }> {
@@ -424,8 +433,8 @@ export class InmueblesService {
    * Transferir titularidad de un inmueble
    */
   async transferirTitularidad(
-    inmuebleId: string,
-    cooperativaId: string,
+    inmuebleId: number,
+    cooperativaId: number,
     data: TransferenciaTitularidadDto,
     usuarioId: string,
   ): Promise<InmuebleCompleto> {
@@ -462,9 +471,8 @@ export class InmueblesService {
       // Crear registro de transferencia
       const transferencia = await tx.transferenciaTitularidad.create({
         data: {
-          numeroTransferencia: await this.generarNumeroTransferencia(
-            cooperativaId,
-          ),
+          numeroTransferencia:
+            await this.generarNumeroTransferencia(cooperativaId),
           motivo: data.motivo as any, // Cast temporal mientras se resuelven los tipos
           descripcionMotivo: data.descripcionMotivo,
           fechaTransferencia: data.fechaTransferencia
@@ -513,8 +521,8 @@ export class InmueblesService {
    * Asociar una cuenta a un inmueble
    */
   async asociarCuenta(
-    inmuebleId: string,
-    cooperativaId: string,
+    inmuebleId: number,
+    cooperativaId: number,
     data: AsociarCuentaDto,
     usuarioId: string,
   ): Promise<InmuebleCompleto> {
@@ -542,9 +550,7 @@ export class InmueblesService {
 
     // Verificar que la cuenta no esté asociada a otro inmueble
     if (cuenta.inmuebleId !== inmuebleId && cuenta.inmuebleId !== null) {
-      throw new ConflictException(
-        'La cuenta ya está asociada a otro inmueble',
-      );
+      throw new ConflictException('La cuenta ya está asociada a otro inmueble');
     }
 
     // Actualizar la cuenta para asociarla al inmueble
@@ -574,9 +580,9 @@ export class InmueblesService {
    * Desvincular una cuenta de un inmueble
    */
   async desvincularCuenta(
-    inmuebleId: string,
+    inmuebleId: number,
     cuentaId: string,
-    cooperativaId: string,
+    cooperativaId: number,
     usuarioId: string,
   ): Promise<InmuebleCompleto> {
     // Verificar que el inmueble existe
@@ -597,9 +603,7 @@ export class InmueblesService {
     });
 
     if (!cuenta) {
-      throw new NotFoundException(
-        'La cuenta no está asociada a este inmueble',
-      );
+      throw new NotFoundException('La cuenta no está asociada a este inmueble');
     }
 
     // Verificar que no hay servicios activos
@@ -643,9 +647,9 @@ export class InmueblesService {
    * Crear legajo automáticamente para un inmueble
    */
   private async crearLegajoAutomatico(
-    inmuebleId: string,
+    inmuebleId: number,
     usuarioId: string,
-    cooperativaId: string,
+    cooperativaId: number,
   ): Promise<void> {
     const numeroLegajo = await this.generarNumeroLegajo(cooperativaId);
 
@@ -655,7 +659,7 @@ export class InmueblesService {
         inmuebleId,
         cooperativaId,
         creadoPorId: usuarioId,
-        estado: 'ACTIVO' as any, // Cast temporal
+        estado: 'ACTIVO', // Cast temporal
       },
     });
   }
@@ -663,7 +667,7 @@ export class InmueblesService {
   /**
    * Generar número de legajo único
    */
-  private async generarNumeroLegajo(cooperativaId: string): Promise<string> {
+  private async generarNumeroLegajo(cooperativaId: number): Promise<string> {
     const config = await this.prisma.configuracionLegajos.findUnique({
       where: { cooperativaId },
     });
@@ -702,7 +706,9 @@ export class InmueblesService {
   /**
    * Generar número de transferencia único
    */
-  private async generarNumeroTransferencia(cooperativaId: string): Promise<string> {
+  private async generarNumeroTransferencia(
+    cooperativaId: number,
+  ): Promise<string> {
     const config = await this.prisma.configuracionLegajos.findUnique({
       where: { cooperativaId },
     });
@@ -711,23 +717,24 @@ export class InmueblesService {
     const year = new Date().getFullYear();
 
     // Obtener el último número de transferencia del año
-    const ultimaTransferencia = await this.prisma.transferenciaTitularidad.findFirst({
-      where: {
-        legajo: {
-          cooperativaId,
+    const ultimaTransferencia =
+      await this.prisma.transferenciaTitularidad.findFirst({
+        where: {
+          legajo: {
+            cooperativaId,
+          },
+          numeroTransferencia: {
+            startsWith: `${prefijo}-`,
+          },
+          createdAt: {
+            gte: new Date(`${year}-01-01`),
+            lt: new Date(`${year + 1}-01-01`),
+          },
         },
-        numeroTransferencia: {
-          startsWith: `${prefijo}-`,
+        orderBy: {
+          numeroTransferencia: 'desc',
         },
-        createdAt: {
-          gte: new Date(`${year}-01-01`),
-          lt: new Date(`${year + 1}-01-01`),
-        },
-      },
-      orderBy: {
-        numeroTransferencia: 'desc',
-      },
-    });
+      });
 
     let numero = 1;
     if (ultimaTransferencia) {

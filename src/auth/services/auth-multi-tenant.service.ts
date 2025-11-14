@@ -41,7 +41,7 @@ export class AuthService {
           email,
           activo: true,
         },
-        cooperativaId,
+        cooperativaId: Number(cooperativaId),
         activo: true,
       },
       include: {
@@ -347,7 +347,7 @@ export class AuthService {
     password: string,
     nombre: string,
     apellido: string,
-    cooperativaId: string,
+    cooperativaId: number,
     esEmpleado: boolean = false,
     personaId?: string,
   ): Promise<{ usuarioId: string; usuarioCooperativaId: string }> {

@@ -36,17 +36,6 @@ export interface UpdateCooperativaDto extends Partial<CreateCooperativaDto> {
   activa?: boolean;
 }
 
-export interface BootstrapCooperativaDto {
-  cooperativa: CreateCooperativaDto;
-  administrador: {
-    email: string;
-    password: string;
-    nombre: string;
-    apellido: string;
-    telefono?: string;
-  };
-}
-
 export interface SolicitudAccesoCooperativaDto {
   // Datos de la cooperativa
   cooperativa: CreateCooperativaDto;
@@ -91,7 +80,7 @@ export class CooperativasService {
     });
   }
 
-  async findOne(id: string): Promise<Cooperativa> {
+  async findOne(id: number): Promise<Cooperativa> {
     const cooperativa = await this.prisma.cooperativa.findUnique({
       where: { id },
       include: {
@@ -143,7 +132,7 @@ export class CooperativasService {
     }
   }
 
-  async update(id: string, data: UpdateCooperativaDto): Promise<Cooperativa> {
+  async update(id: number, data: UpdateCooperativaDto): Promise<Cooperativa> {
     try {
       return await this.prisma.cooperativa.update({
         where: { id },
@@ -162,7 +151,7 @@ export class CooperativasService {
     }
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: number): Promise<void> {
     try {
       // Soft delete - marcamos como inactiva en lugar de eliminar
       await this.prisma.cooperativa.update({
@@ -183,7 +172,7 @@ export class CooperativasService {
     });
   }
 
-  async getStats(id: string) {
+  async getStats(id: number) {
     const cooperativa = await this.findOne(id);
 
     const [usuarios, cuentas, facturas, servicios] = await Promise.all([
@@ -222,119 +211,11 @@ export class CooperativasService {
   }
 
   /**
-   * Bootstrap: Crea una cooperativa con su administrador inicial
-   * Este método NO requiere autenticación y está diseñado para setup inicial
-   */
-  async bootstrapCooperativa(data: BootstrapCooperativaDto) {
-    const { cooperativa: cooperativaData, administrador } = data;
-
-    // Verificar que no existe una cooperativa con ese CUIT
-    const existeCooperativa = await this.existeByCuit(cooperativaData.cuit);
-    if (existeCooperativa) {
-      throw new ConflictException(
-        `Ya existe una cooperativa con el CUIT ${cooperativaData.cuit}`,
-      );
-    }
-
-    // Verificar que no existe un usuario con ese email
-    const existeUsuario = await this.prisma.usuario.findUnique({
-      where: { email: administrador.email },
-      select: { id: true },
-    });
-    if (existeUsuario) {
-      throw new ConflictException(
-        `Ya existe un usuario con el email ${administrador.email}`,
-      );
-    }
-
-    try {
-      // Usar transacción para asegurar consistencia
-      return await this.prisma.$transaction(
-        async (tx) => {
-          // 1. Crear la cooperativa
-          const nuevaCooperativa = await tx.cooperativa.create({
-            data: cooperativaData,
-          });
-
-          // 2. Crear configuración inicial (roles, secciones, onboarding)
-          await this.configurarCooperativaInicial(tx, nuevaCooperativa.id);
-
-          // 3. Crear el usuario administrador
-          // Por ahora sin hash de password - se puede implementar después
-          const hashPassword = administrador.password; // TODO: usar bcrypt.hash(administrador.password, 10)
-
-          const nuevoAdmin = await tx.usuario.create({
-            data: {
-              email: administrador.email,
-              password: hashPassword,
-              nombre: administrador.nombre,
-              apellido: administrador.apellido,
-              telefono: administrador.telefono,
-            },
-          });
-
-          // Crear relación usuario-cooperativa
-          const usuarioCooperativa = await tx.usuarioCooperativa.create({
-            data: {
-              usuarioId: nuevoAdmin.id,
-              cooperativaId: nuevaCooperativa.id,
-              esEmpleado: true,
-            },
-          });
-
-          // 4. Asignar rol de Administrador
-          const rolAdmin = await tx.rol.findFirst({
-            where: {
-              cooperativaId: nuevaCooperativa.id,
-              nombre: 'Administrador',
-            },
-          });
-
-          if (rolAdmin) {
-            await tx.usuarioRol.create({
-              data: {
-                usuarioCooperativaId: usuarioCooperativa.id,
-                rolId: rolAdmin.id,
-              },
-            });
-          }
-
-          return {
-            cooperativa: {
-              id: nuevaCooperativa.id,
-              nombre: nuevaCooperativa.nombre,
-              cuit: nuevaCooperativa.cuit,
-            },
-            administrador: {
-              id: nuevoAdmin.id,
-              email: nuevoAdmin.email,
-              nombre: nuevoAdmin.nombre,
-              apellido: nuevoAdmin.apellido,
-            },
-            mensaje:
-              'Sistema configurado correctamente. Ya puedes iniciar sesión.',
-          };
-        },
-        {
-          timeout: 25000, // 25 segundos para bootstrap completo
-        },
-      );
-    } catch (error: unknown) {
-      if (this.isPrismaError(error, 'P2002')) {
-        throw new ConflictException(
-          'Ya existe una cooperativa o usuario con esos datos',
-        );
-      }
-      throw error;
-    }
-  }
-
-  /**
    * Configura los elementos iniciales de una cooperativa con progreso
    */
   private async configurarCooperativaInicialConProgreso(
     tx: Prisma.TransactionClient,
-    cooperativaId: string,
+    cooperativaId: number,
     sessionId: string,
   ) {
     this.progressService.emitStepStart(
@@ -393,7 +274,7 @@ export class CooperativasService {
    */
   private async configurarCooperativaInicial(
     tx: Prisma.TransactionClient,
-    cooperativaId: string,
+    cooperativaId: number,
   ) {
     await this.crearSeccionesDefecto(tx, cooperativaId);
     await this.crearRolesDefecto(tx, cooperativaId);
@@ -407,7 +288,7 @@ export class CooperativasService {
    */
   private async crearSeccionesDefecto(
     tx: Prisma.TransactionClient,
-    cooperativaId: string,
+    cooperativaId: number,
   ) {
     const secciones = [
       {
@@ -463,7 +344,7 @@ export class CooperativasService {
    */
   private async crearRolesDefecto(
     tx: Prisma.TransactionClient,
-    cooperativaId: string,
+    cooperativaId: number,
   ) {
     const roles = [
       {
@@ -515,7 +396,7 @@ export class CooperativasService {
     tx: Prisma.TransactionClient,
     rolId: string,
     nombreRol: string,
-    cooperativaId: string,
+    cooperativaId: number,
   ) {
     // Obtener todas las secciones
     // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
@@ -553,7 +434,7 @@ export class CooperativasService {
    */
   private async crearConfiguracionOnboardingDefecto(
     tx: Prisma.TransactionClient,
-    cooperativaId: string,
+    cooperativaId: number,
   ) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     await tx.configuracionOnboarding.create({

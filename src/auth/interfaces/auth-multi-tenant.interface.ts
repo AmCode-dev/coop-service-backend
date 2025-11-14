@@ -7,7 +7,7 @@ import { TipoAccion } from '../../../generated/prisma';
 export interface JwtPayload {
   sub: string; // userId
   email: string;
-  cooperativaId?: string; // Opcional para super admin
+  cooperativaId?: number; // Opcional para super admin
   esEmpleado?: boolean;
   personaId?: string;
   roles?: string[];
@@ -49,7 +49,7 @@ export interface SuperAdminUser {
 // ==========================================
 
 export interface CooperativaBasica {
-  id: string;
+  id: number;
   nombre: string;
   razonSocial?: string;
   activa: boolean;
@@ -214,7 +214,7 @@ export interface UsuarioCooperativaDetalle {
   };
   esEmpleado: boolean;
   cooperativa: {
-    id: string;
+    id: number;
     nombre: string;
     activa: boolean;
   };

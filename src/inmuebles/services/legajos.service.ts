@@ -1,13 +1,10 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EstadoLegajo, TipoDocumentoLegajo } from 'generated/prisma';
 
 export interface DocumentoLegajoDto {
   nombre: string;
-  tipoDocumento: string;
+  tipoDocumento: TipoDocumentoLegajo;
   descripcion?: string;
   archivo: Express.Multer.File;
   numeroDocumento?: string;
@@ -29,10 +26,7 @@ export class LegajosService {
   /**
    * Obtener legajo por inmueble ID
    */
-  async obtenerLegajoPorInmueble(
-    inmuebleId: string,
-    cooperativaId: string,
-  ) {
+  async obtenerLegajoPorInmueble(inmuebleId: number, cooperativaId: number) {
     const legajo = await this.prisma.legajo.findFirst({
       where: {
         inmuebleId,
@@ -107,7 +101,7 @@ export class LegajosService {
     const documento = await this.prisma.documentoLegajo.create({
       data: {
         nombre: data.nombre,
-        tipoDocumento: data.tipoDocumento as any, // Cast temporal
+        tipoDocumento: data.tipoDocumento, // Cast temporal
         descripcion: data.descripcion,
         nombreArchivo: data.archivo.originalname,
         urlArchivo: data.archivo.path,
@@ -115,8 +109,12 @@ export class LegajosService {
         tamanoBytes: data.archivo.size,
         hashArchivo,
         numeroDocumento: data.numeroDocumento,
-        fechaDocumento: data.fechaDocumento ? new Date(data.fechaDocumento) : null,
-        fechaVencimiento: data.fechaVencimiento ? new Date(data.fechaVencimiento) : null,
+        fechaDocumento: data.fechaDocumento
+          ? new Date(data.fechaDocumento)
+          : null,
+        fechaVencimiento: data.fechaVencimiento
+          ? new Date(data.fechaVencimiento)
+          : null,
         requiereOriginal: data.requiereOriginal || false,
         legajoId,
         subidoPorId: usuarioId,
@@ -180,7 +178,7 @@ export class LegajosService {
   /**
    * Obtener historial de titularidad de un inmueble
    */
-  async obtenerHistorialTitularidad(inmuebleId: string) {
+  async obtenerHistorialTitularidad(inmuebleId: number) {
     return await this.prisma.historialTitularidadView.findMany({
       where: { inmuebleId },
       orderBy: { fechaInicio: 'desc' },
@@ -192,14 +190,14 @@ export class LegajosService {
    */
   async cambiarEstadoLegajo(
     legajoId: string,
-    nuevoEstado: string,
+    nuevoEstado: EstadoLegajo,
     observaciones?: string,
     usuarioId?: string,
   ) {
     const legajo = await this.prisma.legajo.update({
       where: { id: legajoId },
       data: {
-        estado: nuevoEstado as any, // Cast temporal
+        estado: nuevoEstado, // Cast temporal
       },
     });
 

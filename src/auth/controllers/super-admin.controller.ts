@@ -24,7 +24,8 @@ export class SuperAdminController {
 
   @Get('cooperativas/:id')
   async getCooperativaById(@Param('id') id: string) {
-    return this.superAdminService.getCooperativaById(id);
+    const parsedId = parseInt(id + '');
+    return this.superAdminService.getCooperativaById(parsedId);
   }
 
   @Get('estadisticas')
@@ -42,6 +43,7 @@ export class SuperAdminController {
     @Param('id') id: string,
     @Body('activa') activa: boolean,
   ) {
-    return this.superAdminService.cambiarEstadoCooperativa(id, activa);
+    const parsedId = parseInt(id + '');
+    return this.superAdminService.cambiarEstadoCooperativa(parsedId, activa);
   }
 }

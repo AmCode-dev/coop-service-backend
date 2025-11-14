@@ -19,7 +19,7 @@ datasource db {
 // ============================================
 
 model Cooperativa {
-  id           String   @id @default(cuid())
+  id           Int      @id @default(autoincrement())
   nombre       String
   razonSocial  String
   cuit         String   @unique
@@ -62,7 +62,7 @@ model Cooperativa {
 
   // Medidores
   medidores Medidor[]
-  
+
   // Multi-tenancy
   usuariosMultiTenant UsuarioCooperativa[]
 
@@ -83,16 +83,16 @@ model Cooperativa {
 // ============================================
 
 model Usuario {
-  id         String   @id @default(cuid())
-  email      String   @unique
-  password   String // Hash
-  nombre     String
-  apellido   String
-  telefono   String?
-  avatar     String?
-  activo     Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String // Hash
+  nombre    String
+  apellido  String
+  telefono  String?
+  avatar    String?
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relaciones Multi-Tenancy
   cooperativas UsuarioCooperativa[]
@@ -133,17 +133,17 @@ model Usuario {
   lecturasMedidores Lectura[]
 
   // KYC y Gestión de Personas
-  validacionesKYCRealizadas DocumentoKYC[]         @relation("ValidacionesKYC")
-  cambiosEstadoKYC          HistorialEstadoKYC[]   @relation("CambiosEstadoKYC")
+  validacionesKYCRealizadas DocumentoKYC[]       @relation("ValidacionesKYC")
+  cambiosEstadoKYC          HistorialEstadoKYC[] @relation("CambiosEstadoKYC")
 
   // Historial de precios de categorías
-  historialPreciosCreados   HistorialPrecioCategoria[] @relation("HistorialPreciosCreados")
+  historialPreciosCreados HistorialPrecioCategoria[] @relation("HistorialPreciosCreados")
 
   // Historial de conceptos facturables
   historialConceptosCreados HistorialConcepto[]
 
   // Períodos facturables
-  periodosFacturablesCreados PeriodoFacturable[]
+  periodosFacturablesCreados  PeriodoFacturable[]
   periodosFacturablesCerrados PeriodoFacturable[] @relation("PeriodosCerrados")
 
   // Conceptos facturables aplicados
@@ -157,10 +157,13 @@ model Usuario {
 // USUARIOS COOPERATIVAS (MULTI-TENANCY)
 // ============================================
 
+/**
+ * Un usuario pertenece a la persona, un usuario cooperativa pertenece a una cooperativa
+ */
 model UsuarioCooperativa {
   id            String   @id @default(cuid())
   usuarioId     String
-  cooperativaId String
+  cooperativaId Int
   esEmpleado    Boolean  @default(false) // true si es admin/empleado, false si es socio
   activo        Boolean  @default(true)
   fechaAlta     DateTime @default(now())
@@ -168,15 +171,15 @@ model UsuarioCooperativa {
   updatedAt     DateTime @updatedAt
 
   // Relaciones
-  usuario      Usuario      @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
-  cooperativa  Cooperativa  @relation(fields: [cooperativaId], references: [id], onDelete: Restrict)
-  
+  usuario     Usuario     @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  cooperativa Cooperativa @relation(fields: [cooperativaId], references: [id], onDelete: Restrict)
+
   // Roles específicos por cooperativa
-  roles        UsuarioRol[]
-  
+  roles UsuarioRol[]
+
   // Persona vinculada si es socio
-  persona      Persona?     @relation("UsuarioCooperativaPersona", fields: [personaId], references: [id])
-  personaId    String?
+  persona   Persona? @relation("UsuarioCooperativaPersona", fields: [personaId], references: [id])
+  personaId String?
 
   @@unique([usuarioId, cooperativaId])
   @@index([usuarioId])
@@ -194,16 +197,16 @@ model RefreshToken {
   token     String   @unique
   expiresAt DateTime
   isRevoked Boolean  @default(false)
-  
+
   // Metadata de la sesión
   userAgent String?
   ipAddress String?
   deviceId  String? // Para identificar dispositivos únicos
-  
+
   // Información de uso
   lastUsedAt DateTime?
-  usageCount Int      @default(0)
-  
+  usageCount Int       @default(0)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -236,7 +239,7 @@ model Rol {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  cooperativaId String
+  cooperativaId Int
   cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
 
   // Relaciones
@@ -249,9 +252,9 @@ model Rol {
 }
 
 model UsuarioRol {
-  id                   String   @id @default(cuid())
-  asignadoEn           DateTime @default(now())
-  activo               Boolean  @default(true)
+  id         String   @id @default(cuid())
+  asignadoEn DateTime @default(now())
+  activo     Boolean  @default(true)
 
   // Cambio: Ahora se relaciona con UsuarioCooperativa en lugar de Usuario
   usuarioCooperativaId String
@@ -275,7 +278,7 @@ model SeccionSistema {
   orden       Int     @default(0)
   activa      Boolean @default(true)
 
-  cooperativaId String
+  cooperativaId Int
   cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
 
   // Relaciones
@@ -364,9 +367,9 @@ model Persona {
 
   // Datos Personales Adicionales
   fechaNacimiento DateTime?
-  estadoCivil     String?      // "SOLTERO", "CASADO", "DIVORCIADO", "VIUDO"
-  nacionalidad    String?      @default("Argentina")
-  
+  estadoCivil     String? // "SOLTERO", "CASADO", "DIVORCIADO", "VIUDO"
+  nacionalidad    String?   @default("Argentina")
+
   // Contacto
   telefono        String?
   telefonoMovil   String?
@@ -392,47 +395,47 @@ model Persona {
   // Información Laboral
   ocupacion         String?
   empresa           String?
-  ingresosMensuales Decimal? @db.Decimal(12,2)
-  
+  ingresosMensuales Decimal? @db.Decimal(12, 2)
+
   // Estado como Socio
-  numeroSocio  String?      @unique // Número único de socio en la cooperativa
-  fechaAlta    DateTime?    // Fecha de alta como socio
-  estadoSocio  EstadoSocio  @default(ACTIVO)
-  
+  numeroSocio String?     @unique // Número único de socio en la cooperativa
+  fechaAlta   DateTime? // Fecha de alta como socio
+  estadoSocio EstadoSocio @default(ACTIVO)
+
   // KYC (Know Your Customer)
-  estadoKYC           EstadoKYC @default(PENDIENTE)
-  fechaInicioKYC      DateTime?
-  fechaCompletadoKYC  DateTime?
-  observacionesKYC    String?
-  requiereActualizacionKYC Boolean @default(false)
-  proximaRevisionKYC  DateTime?
-  
+  estadoKYC                EstadoKYC @default(PENDIENTE)
+  fechaInicioKYC           DateTime?
+  fechaCompletadoKYC       DateTime?
+  observacionesKYC         String?
+  requiereActualizacionKYC Boolean   @default(false)
+  proximaRevisionKYC       DateTime?
+
   // Preferencias
-  recibirNotificaciones        Boolean @default(true)
-  recibirNotificacionesPorSMS  Boolean @default(false)
-  recibirFacturaPorEmail       Boolean @default(true)
-  
+  recibirNotificaciones       Boolean @default(true)
+  recibirNotificacionesPorSMS Boolean @default(false)
+  recibirFacturaPorEmail      Boolean @default(true)
+
   // Auditoría
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  cooperativaId String
+  cooperativaId Int
   cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id], onDelete: Restrict)
 
   // Relaciones existentes
   cuentasComoTitularServicio Cuenta[]   @relation("TitularServicio")
   inmueblesComoTitular       Inmueble[] @relation("TitularInmueble")
-  
+
   // Nueva relación multi-tenant
-  usuariosCooperativa        UsuarioCooperativa[] @relation("UsuarioCooperativaPersona")
+  usuariosCooperativa UsuarioCooperativa[] @relation("UsuarioCooperativaPersona")
 
   transferenciasDesde TransferenciaTitularidad[] @relation("TransferenciasDesdeTitular")
   transferenciasHacia TransferenciaTitularidad[] @relation("TransferenciasHaciaTitular")
 
   // Nuevas relaciones KYC y gestión
-  documentosKYC       DocumentoKYC[]
-  historialEstadoKYC  HistorialEstadoKYC[]
-  solicitudesReset    SolicitudResetPassword[]
+  documentosKYC          DocumentoKYC[]
+  historialEstadoKYC     HistorialEstadoKYC[]
+  solicitudesReset       SolicitudResetPassword[]
   notificacionesEnviadas NotificacionPersona[]
 
   @@unique([cooperativaId, tipoDocumento, numeroDocumento])
@@ -450,30 +453,30 @@ model Persona {
 // ============================================
 
 model DocumentoKYC {
-  id               String           @id @default(cuid())
-  personaId        String
-  persona          Persona          @relation(fields: [personaId], references: [id], onDelete: Cascade)
-  
-  tipoDocumento    TipoDocumentoKYC
-  nombreArchivo    String
-  urlArchivo       String           // Ruta o URL del archivo subido
-  tamanioArchivo   Int?             // En bytes
-  mimeType         String?
-  
+  id        String  @id @default(cuid())
+  personaId String
+  persona   Persona @relation(fields: [personaId], references: [id], onDelete: Cascade)
+
+  tipoDocumento  TipoDocumentoKYC
+  nombreArchivo  String
+  urlArchivo     String // Ruta o URL del archivo subido
+  tamanioArchivo Int? // En bytes
+  mimeType       String?
+
   // Validación
-  validado         Boolean          @default(false)
-  fechaValidacion  DateTime?
-  validadoPorId    String?
-  validadoPor      Usuario?         @relation("ValidacionesKYC", fields: [validadoPorId], references: [id])
-  observaciones    String?
-  
+  validado        Boolean   @default(false)
+  fechaValidacion DateTime?
+  validadoPorId   String?
+  validadoPor     Usuario?  @relation("ValidacionesKYC", fields: [validadoPorId], references: [id])
+  observaciones   String?
+
   // Estados
-  requiereReemplazo Boolean         @default(false)
-  fechaVencimiento DateTime?       // Para documentos que expiran
-  
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-  
+  requiereReemplazo Boolean   @default(false)
+  fechaVencimiento  DateTime? // Para documentos que expiran
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([personaId])
   @@index([tipoDocumento])
   @@index([validado])
@@ -481,44 +484,44 @@ model DocumentoKYC {
 }
 
 model HistorialEstadoKYC {
-  id                String    @id @default(cuid())
-  personaId         String
-  persona           Persona   @relation(fields: [personaId], references: [id], onDelete: Cascade)
-  
-  estadoAnterior    EstadoKYC?
-  estadoNuevo       EstadoKYC
-  motivo            String?
-  observaciones     String?
-  
+  id        String  @id @default(cuid())
+  personaId String
+  persona   Persona @relation(fields: [personaId], references: [id], onDelete: Cascade)
+
+  estadoAnterior EstadoKYC?
+  estadoNuevo    EstadoKYC
+  motivo         String?
+  observaciones  String?
+
   // Auditoría
-  fechaCambio       DateTime  @default(now())
-  cambiadoPorId     String?
-  cambiadoPor       Usuario?  @relation("CambiosEstadoKYC", fields: [cambiadoPorId], references: [id])
-  
+  fechaCambio   DateTime @default(now())
+  cambiadoPorId String?
+  cambiadoPor   Usuario? @relation("CambiosEstadoKYC", fields: [cambiadoPorId], references: [id])
+
   @@index([personaId, fechaCambio])
   @@map("historial_estado_kyc")
 }
 
 model SolicitudResetPassword {
-  id            String    @id @default(cuid())
-  personaId     String
-  persona       Persona   @relation(fields: [personaId], references: [id], onDelete: Cascade)
-  
-  token         String    @unique
-  usado         Boolean   @default(false)
-  fechaExpira   DateTime
-  
+  id        String  @id @default(cuid())
+  personaId String
+  persona   Persona @relation(fields: [personaId], references: [id], onDelete: Cascade)
+
+  token       String   @unique
+  usado       Boolean  @default(false)
+  fechaExpira DateTime
+
   // Información de la solicitud
-  ipOrigen      String?
-  userAgent     String?
-  motivo        String?   // "OLVIDO_PASSWORD", "CAMBIO_SEGURIDAD", etc.
-  
+  ipOrigen  String?
+  userAgent String?
+  motivo    String? // "OLVIDO_PASSWORD", "CAMBIO_SEGURIDAD", etc.
+
   // Uso del token
-  fechaUso      DateTime?
-  ipUso         String?
-  
-  createdAt     DateTime  @default(now())
-  
+  fechaUso DateTime?
+  ipUso    String?
+
+  createdAt DateTime @default(now())
+
   @@index([token])
   @@index([personaId])
   @@index([fechaExpira])
@@ -526,33 +529,33 @@ model SolicitudResetPassword {
 }
 
 model NotificacionPersona {
-  id          String    @id @default(cuid())
-  personaId   String
-  persona     Persona   @relation(fields: [personaId], references: [id], onDelete: Cascade)
-  
-  tipo        String    // "EMAIL", "SMS", "PUSH", "SISTEMA"
-  categoria   String    // "FACTURACION", "KYC", "GENERAL", "EMERGENCIA"
-  titulo      String
-  mensaje     String
-  
+  id        String  @id @default(cuid())
+  personaId String
+  persona   Persona @relation(fields: [personaId], references: [id], onDelete: Cascade)
+
+  tipo      String // "EMAIL", "SMS", "PUSH", "SISTEMA"
+  categoria String // "FACTURACION", "KYC", "GENERAL", "EMERGENCIA"
+  titulo    String
+  mensaje   String
+
   // Estado de entrega
-  enviado     Boolean   @default(false)
-  fechaEnvio  DateTime?
-  entregado   Boolean   @default(false)
+  enviado      Boolean   @default(false)
+  fechaEnvio   DateTime?
+  entregado    Boolean   @default(false)
   fechaEntrega DateTime?
-  leido       Boolean   @default(false)
+  leido        Boolean   @default(false)
   fechaLectura DateTime?
-  
+
   // Datos técnicos
-  intentosEnvio Int      @default(0)
+  intentosEnvio Int     @default(0)
   ultimoError   String?
-  
+
   // Metadata
-  metadata    Json?     // Información adicional específica del tipo de notificación
-  
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
+  metadata Json? // Información adicional específica del tipo de notificación
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([personaId, tipo])
   @@index([categoria])
   @@index([enviado, fechaEnvio])
@@ -564,7 +567,7 @@ model NotificacionPersona {
 // ============================================
 
 model Inmueble {
-  id           String  @id @default(cuid())
+  id           Int     @id @default(autoincrement())
   domicilio    String
   piso         String?
   codigoPostal String
@@ -610,7 +613,7 @@ model ServicioDisponible {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  cooperativaId String
+  cooperativaId Int
   cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
 
   // Relaciones
@@ -632,7 +635,7 @@ model CategoriaConsumo {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  cooperativaId String
+  cooperativaId Int
   cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
 
   servicioId String
@@ -655,7 +658,7 @@ model HistorialPrecioCategoria {
   anio          Int
   vigenciaDesde DateTime
   vigenciaHasta DateTime?
-  observaciones String?   // Motivo del cambio de precio
+  observaciones String? // Motivo del cambio de precio
   activo        Boolean   @default(true)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -687,18 +690,18 @@ model Cuenta {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  cooperativaId String
+  cooperativaId Int
   cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
 
   titularServicioId String
   titularServicio   Persona @relation("TitularServicio", fields: [titularServicioId], references: [id], onDelete: Restrict)
 
-  inmuebleId String
+  inmuebleId Int
   inmueble   Inmueble @relation(fields: [inmuebleId], references: [id], onDelete: Restrict)
 
   // Relaciones
-  servicios CuentaServicio[]
-  facturas  Factura[]
+  servicios          CuentaServicio[]
+  facturas           Factura[]
   conceptosAplicados ConceptoFacturableAplicado[]
 
   operaciones Operacion[]
@@ -732,9 +735,9 @@ model CuentaServicio {
   medidor   Medidor? @relation(fields: [medidorId], references: [id])
 
   // Relaciones
-  facturas    Factura[]
+  facturas           Factura[]
   conceptosAplicados ConceptoFacturableAplicado[]
-  operaciones Operacion[]
+  operaciones        Operacion[]
 
   @@unique([cuentaId, servicioId])
   @@index([cuentaId])
@@ -759,11 +762,11 @@ model Medidor {
   updatedAt        DateTime  @updatedAt
 
   // Nueva relación con cooperativa
-  cooperativaId String
+  cooperativaId Int
   cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
 
   // Relación opcional con inmueble para ubicación
-  inmuebleId String?
+  inmuebleId Int?
   inmueble   Inmueble? @relation(fields: [inmuebleId], references: [id])
 
   // Relaciones existentes
@@ -789,18 +792,18 @@ model Lectura {
   mes              Int // 1-12
   anio             Int
   observaciones    String?
-  
+
   // Campos adicionales para análisis
-  esPrincipal      Boolean  @default(false) // Indica si es la lectura principal del mes
-  lecturaAnterior  Decimal? @db.Decimal(12, 2) // Lectura anterior para calcular consumo
-  anomalia         Boolean  @default(false) // Indica si hay anomalía detectada
-  tipoAnomalia     String? // Tipo de anomalía detectada
-  
+  esPrincipal     Boolean  @default(false) // Indica si es la lectura principal del mes
+  lecturaAnterior Decimal? @db.Decimal(12, 2) // Lectura anterior para calcular consumo
+  anomalia        Boolean  @default(false) // Indica si hay anomalía detectada
+  tipoAnomalia    String? // Tipo de anomalía detectada
+
   // Datos del operador que tomó la lectura
-  tomadoPorId      String?
-  tomadoPor        Usuario? @relation(fields: [tomadoPorId], references: [id])
-  
-  createdAt        DateTime @default(now())
+  tomadoPorId String?
+  tomadoPor   Usuario? @relation(fields: [tomadoPorId], references: [id])
+
+  createdAt DateTime @default(now())
 
   medidorId String
   medidor   Medidor @relation(fields: [medidorId], references: [id])
@@ -840,17 +843,17 @@ model HistorialVinculacionMedidor {
   // Datos de la vinculación
   entidadAnteriorId String? // ID de la cuenta/inmueble anterior
   entidadNuevaId    String? // ID de la cuenta/inmueble nueva
-  
+
   // Información contextual
   motivo        String? // Motivo del cambio
   observaciones String?
-  
+
   fechaOperacion DateTime @default(now())
-  
+
   // Relaciones
   medidorId String
   medidor   Medidor @relation(fields: [medidorId], references: [id], onDelete: Cascade)
-  
+
   operadoPorId String
   operadoPor   Usuario @relation(fields: [operadoPorId], references: [id])
 
@@ -903,12 +906,12 @@ model ConceptoFacturable {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  cooperativaId String
+  cooperativaId Int
   cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
 
   // Relaciones
-  historial    HistorialConcepto[]
-  itemsFactura ItemFactura[]
+  historial          HistorialConcepto[]
+  itemsFactura       ItemFactura[]
   conceptosAplicados ConceptoFacturableAplicado[]
 
   @@unique([cooperativaId, codigo])
@@ -946,7 +949,7 @@ model HistorialConcepto {
 // ============================================
 
 model PeriodoFacturable {
-  id            String   @id @default(cuid())
+  id            String        @id @default(cuid())
   mes           Int // 1-12
   anio          Int
   periodo       String // "10/2024"
@@ -955,16 +958,16 @@ model PeriodoFacturable {
   estado        EstadoPeriodo @default(ABIERTO)
   observaciones String?
   fechaCierre   DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   // Auditoría
-  creadoPorId String?
-  creadoPor   Usuario? @relation(fields: [creadoPorId], references: [id])
+  creadoPorId  String?
+  creadoPor    Usuario? @relation(fields: [creadoPorId], references: [id])
   cerradoPorId String?
   cerradoPor   Usuario? @relation("PeriodosCerrados", fields: [cerradoPorId], references: [id])
 
-  cooperativaId String
+  cooperativaId Int
   cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
 
   // Relaciones
@@ -984,34 +987,34 @@ enum EstadoPeriodo {
 }
 
 model ConceptoFacturableAplicado {
-  id               String   @id @default(cuid())
-  cantidad         Decimal  @db.Decimal(12, 4) // Cantidad aplicada (ej: m3 de agua)
-  valorUnitario    Decimal  @db.Decimal(12, 4) // Valor por unidad en ese período
-  subtotal         Decimal  @db.Decimal(12, 2) // cantidad * valorUnitario
-  aplicaIVA        Boolean  @default(false)
-  porcentajeIVA    Decimal? @db.Decimal(5, 2) // 21.00, 10.50, etc.
-  montoIVA         Decimal  @default(0) @db.Decimal(12, 2)
-  total            Decimal  @db.Decimal(12, 2) // subtotal + IVA
-  observaciones    String?
-  facturado        Boolean  @default(false) // Si ya se incluyó en factura
-  fechaAplicacion  DateTime @default(now())
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id              String   @id @default(cuid())
+  cantidad        Decimal  @db.Decimal(12, 4) // Cantidad aplicada (ej: m3 de agua)
+  valorUnitario   Decimal  @db.Decimal(12, 4) // Valor por unidad en ese período
+  subtotal        Decimal  @db.Decimal(12, 2) // cantidad * valorUnitario
+  aplicaIVA       Boolean  @default(false)
+  porcentajeIVA   Decimal? @db.Decimal(5, 2) // 21.00, 10.50, etc.
+  montoIVA        Decimal  @default(0) @db.Decimal(12, 2)
+  total           Decimal  @db.Decimal(12, 2) // subtotal + IVA
+  observaciones   String?
+  facturado       Boolean  @default(false) // Si ya se incluyó en factura
+  fechaAplicacion DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   // Auditoría
   creadoPorId String?
   creadoPor   Usuario? @relation(fields: [creadoPorId], references: [id])
 
   // Relaciones principales
-  periodoId       String
-  periodo         PeriodoFacturable @relation(fields: [periodoId], references: [id])
-  
-  conceptoId      String
-  concepto        ConceptoFacturable @relation(fields: [conceptoId], references: [id])
-  
-  cuentaId        String
-  cuenta          Cuenta @relation(fields: [cuentaId], references: [id])
-  
+  periodoId String
+  periodo   PeriodoFacturable @relation(fields: [periodoId], references: [id])
+
+  conceptoId String
+  concepto   ConceptoFacturable @relation(fields: [conceptoId], references: [id])
+
+  cuentaId String
+  cuenta   Cuenta @relation(fields: [cuentaId], references: [id])
+
   cuentaServicioId String?
   cuentaServicio   CuentaServicio? @relation(fields: [cuentaServicioId], references: [id])
 
@@ -1181,13 +1184,13 @@ model Pago {
   createdAt     DateTime @default(now())
 
   // Información del proveedor de pago
-  proveedorPagoId       String?      // ID del proveedor de pago utilizado
-  proveedorPago         ProveedorPago? @relation(fields: [proveedorPagoId], references: [id])
-  referenciaExterna     String?      // ID de transacción del proveedor externo
-  estadoProveedorPago   String?      // Estado reportado por el proveedor
-  respuestaProveedorPago Json?       // Respuesta completa del proveedor
-  comisionProveedor     Decimal?     @db.Decimal(12, 2) // Comisión cobrada por el proveedor
-  
+  proveedorPagoId        String? // ID del proveedor de pago utilizado
+  proveedorPago          ProveedorPago? @relation(fields: [proveedorPagoId], references: [id])
+  referenciaExterna      String? // ID de transacción del proveedor externo
+  estadoProveedorPago    String? // Estado reportado por el proveedor
+  respuestaProveedorPago Json? // Respuesta completa del proveedor
+  comisionProveedor      Decimal?       @db.Decimal(12, 2) // Comisión cobrada por el proveedor
+
   facturaId String
   factura   Factura @relation(fields: [facturaId], references: [id])
 
@@ -1248,7 +1251,7 @@ model Zona {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  cooperativaId String
+  cooperativaId Int
   cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
 
   // Relaciones
@@ -1287,7 +1290,7 @@ model Operacion {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  cooperativaId String
+  cooperativaId Int
   cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
 
   zonaId String?
@@ -1408,7 +1411,7 @@ model CategoriaReporte {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  cooperativaId String
+  cooperativaId Int
   cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
 
   // Relaciones
@@ -1444,7 +1447,7 @@ model PlantillaReporte {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  cooperativaId String
+  cooperativaId Int
   cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
 
   categoriaId String?
@@ -1507,7 +1510,7 @@ model Reporte {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  cooperativaId String
+  cooperativaId Int
   cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
 
   plantillaId String?
@@ -1595,7 +1598,7 @@ model LogConsultaDirecta {
 
   fechaEjecucion DateTime @default(now())
 
-  cooperativaId String
+  cooperativaId Int
   cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
 
   ejecutadoPorId String
@@ -1629,7 +1632,7 @@ model ConfiguracionRetencionDatos {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  cooperativaId String      @unique
+  cooperativaId Int         @unique
   cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
 
   @@map("configuraciones_retencion_datos")
@@ -1695,10 +1698,10 @@ model Legajo {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  cooperativaId String
+  cooperativaId Int
   cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
 
-  inmuebleId String   @unique
+  inmuebleId Int      @unique
   inmueble   Inmueble @relation(fields: [inmuebleId], references: [id], onDelete: Restrict)
 
   creadoPorId String
@@ -1870,7 +1873,7 @@ model HistorialTitularidadView {
   id String @id @default(cuid())
 
   // Para consultas rápidas del historial completo
-  inmuebleId String
+  inmuebleId Int
   legajoId   String
 
   titularId        String
@@ -1921,7 +1924,7 @@ model ConfiguracionLegajos {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  cooperativaId String      @unique
+  cooperativaId Int         @unique
   cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
 
   @@map("configuraciones_legajos")
@@ -1935,9 +1938,9 @@ model ConfiguracionOnboarding {
   id String @id @default(cuid())
 
   // Configuración general
-  activado                Boolean @default(true)
+  activado                 Boolean @default(true)
   requiereAprobacionManual Boolean @default(false)
-  tiempoLimiteOnboarding  Int     @default(30) // días
+  tiempoLimiteOnboarding   Int     @default(30) // días
 
   // Configuración de pasos
   pasosObligatorios String[] @default(["DATOS_PERSONALES", "DOCUMENTACION", "ACEPTACION_TERMINOS"])
@@ -1953,23 +1956,23 @@ model ConfiguracionOnboarding {
   requiereValidacionDomicilio Boolean @default(true)
 
   // Configuración de comunicaciones
-  emailBienvenida        String?
-  emailRecordatorio      String?
-  diasRecordatorio       Int     @default(7)
-  maxRecordatorios       Int     @default(3)
-  emailAprobacion        String?
-  emailRechazo           String?
+  emailBienvenida   String?
+  emailRecordatorio String?
+  diasRecordatorio  Int     @default(7)
+  maxRecordatorios  Int     @default(3)
+  emailAprobacion   String?
+  emailRechazo      String?
 
   // Configuración de integraciones
-  integrarConSistemaContable Boolean @default(false)
-  integrarConCRM            Boolean @default(false)
-  crearCuentaAutomatica     Boolean @default(true)
-  asignarServiciosBasicos   String[] @default([])
+  integrarConSistemaContable Boolean  @default(false)
+  integrarConCRM             Boolean  @default(false)
+  crearCuentaAutomatica      Boolean  @default(true)
+  asignarServiciosBasicos    String[] @default([])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  cooperativaId String      @unique
+  cooperativaId Int         @unique
   cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
 
   @@map("configuraciones_onboarding")
@@ -1988,22 +1991,22 @@ model ProcesoOnboarding {
   fechaNacimiento DateTime?
 
   // Datos de domicilio
-  domicilio     String?
-  localidad     String?
-  provincia     String?
-  codigoPostal  String?
+  domicilio    String?
+  localidad    String?
+  provincia    String?
+  codigoPostal String?
 
   // Estado del proceso
-  estado                EstadoOnboarding    @default(INICIADO)
-  fechaInicio          DateTime            @default(now())
-  fechaUltimaActividad DateTime            @default(now())
+  estado               EstadoOnboarding @default(INICIADO)
+  fechaInicio          DateTime         @default(now())
+  fechaUltimaActividad DateTime         @default(now())
   fechaFinalizacion    DateTime?
   fechaVencimiento     DateTime?
 
   // Progreso
-  pasoActual        String   @default("DATOS_PERSONALES")
-  pasosCompletados  String[] @default([])
-  pasosPendientes   String[] @default([])
+  pasoActual       String   @default("DATOS_PERSONALES")
+  pasosCompletados String[] @default([])
+  pasosPendientes  String[] @default([])
 
   // Validaciones
   emailValidado     Boolean @default(false)
@@ -2018,23 +2021,23 @@ model ProcesoOnboarding {
   observacionesInternas String?
 
   // Metadata
-  ipRegistro      String?
-  userAgent       String?
-  origenSolicitud String? // WEB, MOBILE, PRESENCIAL, etc.
+  ipRegistro       String?
+  userAgent        String?
+  origenSolicitud  String? // WEB, MOBILE, PRESENCIAL, etc.
   codigoReferencia String? @unique // Código único para seguimiento
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relaciones
-  cooperativaId String
+  cooperativaId Int
   cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
 
-  documentos         DocumentoOnboarding[]
-  pasos              PasoOnboarding[]
-  validaciones       ValidacionOnboarding[]
-  comunicaciones     ComunicacionOnboarding[]
-  resultadosReglas   ResultadoReglaOnboarding[]
+  documentos       DocumentoOnboarding[]
+  pasos            PasoOnboarding[]
+  validaciones     ValidacionOnboarding[]
+  comunicaciones   ComunicacionOnboarding[]
+  resultadosReglas ResultadoReglaOnboarding[]
 
   // Usuario creado después de la aprobación
   usuarioCreadoId String?  @unique
@@ -2057,15 +2060,15 @@ model ReglaOnboarding {
   orden       Int     @default(0)
 
   // Configuración de la regla
-  tipoRegla    TipoReglaOnboarding
-  condiciones  Json // Condiciones para que se aplique la regla
-  acciones     Json // Acciones a ejecutar cuando se cumple la regla
-  parametros   Json? // Parámetros adicionales de la regla
+  tipoRegla   TipoReglaOnboarding
+  condiciones Json // Condiciones para que se aplique la regla
+  acciones    Json // Acciones a ejecutar cuando se cumple la regla
+  parametros  Json? // Parámetros adicionales de la regla
 
   // Configuración de ejecución
-  ejecutarEn   EtapaOnboarding[] @default([VALIDACION])
-  esCritica    Boolean           @default(false) // Si falla, bloquea el proceso
-  esAsincrona  Boolean           @default(false) // Se ejecuta en background
+  ejecutarEn  EtapaOnboarding[] @default([VALIDACION])
+  esCritica   Boolean           @default(false) // Si falla, bloquea el proceso
+  esAsincrona Boolean           @default(false) // Se ejecuta en background
 
   // Configuración de reintentos
   permiteReintentos Boolean @default(true)
@@ -2075,7 +2078,7 @@ model ReglaOnboarding {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  cooperativaId String
+  cooperativaId Int
   cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id])
 
   resultados ResultadoReglaOnboarding[]
@@ -2089,17 +2092,17 @@ model ReglaOnboarding {
 model DocumentoOnboarding {
   id String @id @default(cuid())
 
-  nombre          String
-  tipoDocumento   String
-  descripcion     String?
-  esObligatorio   Boolean @default(true)
+  nombre        String
+  tipoDocumento String
+  descripcion   String?
+  esObligatorio Boolean @default(true)
 
   // Archivo
-  nombreArchivo   String
-  rutaArchivo     String
-  tamanoBytes     Int
-  tipoMime        String
-  hashArchivo     String? // Para verificar integridad
+  nombreArchivo String
+  rutaArchivo   String
+  tamanoBytes   Int
+  tipoMime      String
+  hashArchivo   String? // Para verificar integridad
 
   // Estado de validación
   estado          EstadoDocumento @default(PENDIENTE)
@@ -2133,11 +2136,11 @@ model PasoOnboarding {
   esObligatorio Boolean @default(true)
 
   // Estado del paso
-  estado              EstadoPaso @default(PENDIENTE)
-  fechaInicio         DateTime?
-  fechaCompletado     DateTime?
-  intentosRealizados  Int        @default(0)
-  maxIntentos         Int        @default(3)
+  estado             EstadoPaso @default(PENDIENTE)
+  fechaInicio        DateTime?
+  fechaCompletado    DateTime?
+  intentosRealizados Int        @default(0)
+  maxIntentos        Int        @default(3)
 
   // Datos del paso
   datosEntrada  Json? // Datos necesarios para el paso
@@ -2145,7 +2148,7 @@ model PasoOnboarding {
   configuracion Json? // Configuración específica del paso
 
   // Validación
-  requiereValidacion Boolean @default(false)
+  requiereValidacion Boolean   @default(false)
   validadoPor        String? // ID del usuario que validó
   fechaValidacion    DateTime?
   observaciones      String?
@@ -2170,14 +2173,14 @@ model ValidacionOnboarding {
   estado         EstadoValidacion @default(PENDIENTE)
 
   // Resultado de la validación
-  esValido         Boolean   @default(false)
-  fechaValidacion  DateTime?
-  motivoRechazo    String?
-  datosValidacion  Json? // Datos adicionales de la validación
-  intentos         Int       @default(0)
+  esValido        Boolean   @default(false)
+  fechaValidacion DateTime?
+  motivoRechazo   String?
+  datosValidacion Json? // Datos adicionales de la validación
+  intentos        Int       @default(0)
 
   // Configuración de reintentos
-  permiteReintentos Boolean @default(true)
+  permiteReintentos Boolean   @default(true)
   proximoIntento    DateTime?
 
   createdAt DateTime @default(now())
@@ -2229,9 +2232,9 @@ model ResultadoReglaOnboarding {
   id String @id @default(cuid())
 
   // Ejecución de la regla
-  fechaEjecucion DateTime @default(now())
+  fechaEjecucion DateTime             @default(now())
   estado         EstadoEjecucionRegla
-  tiempo        Int? // Tiempo de ejecución en ms
+  tiempo         Int? // Tiempo de ejecución en ms
 
   // Resultado
   exitosa        Boolean
@@ -2240,7 +2243,7 @@ model ResultadoReglaOnboarding {
   error          String?
 
   // Reintentos
-  intento       Int @default(1)
+  intento        Int       @default(1)
   proximoIntento DateTime?
 
   createdAt DateTime @default(now())
@@ -2394,50 +2397,50 @@ model ProveedorPago {
   id String @id @default(cuid())
 
   // Información básica
-  nombre          String           // "MercadoPago", "PayPal", "Stripe"
-  codigo          String           @unique // "mercadopago", "paypal", "stripe"
-  tipo            TipoProveedorPago
-  descripcion     String?
-  logoUrl         String?          // URL del logo del proveedor
-  sitioWeb        String?          // URL del sitio web del proveedor
+  nombre      String // "MercadoPago", "PayPal", "Stripe"
+  codigo      String            @unique // "mercadopago", "paypal", "stripe"
+  tipo        TipoProveedorPago
+  descripcion String?
+  logoUrl     String? // URL del logo del proveedor
+  sitioWeb    String? // URL del sitio web del proveedor
 
   // Configuración técnica
-  apiBaseUrl      String?          // URL base de la API
-  versionApi      String?          // Versión de API soportada
-  documentacionUrl String?         // URL de documentación técnica
-  
+  apiBaseUrl       String? // URL base de la API
+  versionApi       String? // Versión de API soportada
+  documentacionUrl String? // URL de documentación técnica
+
   // Características
-  soportaWebhooks     Boolean @default(false)
-  soportaTarjetas     Boolean @default(true)
+  soportaWebhooks       Boolean @default(false)
+  soportaTarjetas       Boolean @default(true)
   soportaTransferencias Boolean @default(false)
-  soportaEfectivo     Boolean @default(false)
-  soportaRecurrentes  Boolean @default(false)
-  
+  soportaEfectivo       Boolean @default(false)
+  soportaRecurrentes    Boolean @default(false)
+
   // Límites y configuración
-  montoMinimo         Decimal? @db.Decimal(12, 2)
-  montoMaximo         Decimal? @db.Decimal(12, 2)
-  comisionPorcentaje  Decimal? @db.Decimal(5, 4) // % de comisión
-  comisionFija        Decimal? @db.Decimal(12, 2) // Monto fijo de comisión
-  
+  montoMinimo        Decimal? @db.Decimal(12, 2)
+  montoMaximo        Decimal? @db.Decimal(12, 2)
+  comisionPorcentaje Decimal? @db.Decimal(5, 4) // % de comisión
+  comisionFija       Decimal? @db.Decimal(12, 2) // Monto fijo de comisión
+
   // Configuración de tiempo
   tiempoExpiracionMinutos Int @default(60) // Tiempo de expiración de pagos
   tiempoConfirmacionHoras Int @default(72) // Tiempo máximo para confirmación
-  
+
   // Datos del proveedor
-  paisesDisponibles   String[] @default([]) // Códigos de países donde opera
-  monedasSoportadas   String[] @default(["ARS"]) // Monedas soportadas
-  
+  paisesDisponibles String[] @default([]) // Códigos de países donde opera
+  monedasSoportadas String[] @default(["ARS"]) // Monedas soportadas
+
   // Estado
-  estado              EstadoProveedorPago @default(ACTIVO)
-  activo              Boolean @default(true)
-  
+  estado EstadoProveedorPago @default(ACTIVO)
+  activo Boolean             @default(true)
+
   // Auditoría
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relaciones
-  cooperativas        ProveedorPagoCooperativa[]
-  pagos               Pago[]
+  cooperativas ProveedorPagoCooperativa[]
+  pagos        Pago[]
 
   @@index([codigo])
   @@index([tipo])
@@ -2449,49 +2452,49 @@ model ProveedorPagoCooperativa {
   id String @id @default(cuid())
 
   // Configuración específica de la cooperativa
-  activo              Boolean @default(true)
-  esPrincipal         Boolean @default(false) // Proveedor principal de la cooperativa
-  
+  activo      Boolean @default(true)
+  esPrincipal Boolean @default(false) // Proveedor principal de la cooperativa
+
   // Credenciales de acceso (encriptadas)
-  tokenAcceso         String  // Token principal (encriptado)
-  tokenRefresh        String? // Token de refresh si aplica (encriptado)
-  clavePublica        String? // Clave pública (encriptado)
-  clavePrivada        String? // Clave privada (encriptado)
-  
+  tokenAcceso  String // Token principal (encriptado)
+  tokenRefresh String? // Token de refresh si aplica (encriptado)
+  clavePublica String? // Clave pública (encriptado)
+  clavePrivada String? // Clave privada (encriptado)
+
   // Configuración específica
-  entornoPruebas      Boolean @default(true) // true = sandbox, false = producción
-  webhookUrl          String? // URL para recibir notificaciones
-  webhookSecret       String? // Secret para validar webhooks (encriptado)
-  
+  entornoPruebas Boolean @default(true) // true = sandbox, false = producción
+  webhookUrl     String? // URL para recibir notificaciones
+  webhookSecret  String? // Secret para validar webhooks (encriptado)
+
   // Configuración personalizada para esta cooperativa
   configuracionPersonalizada Json? // Configuraciones específicas del proveedor
-  
+
   // Límites personalizados
-  montoMinimo         Decimal? @db.Decimal(12, 2)
-  montoMaximo         Decimal? @db.Decimal(12, 2)
-  comisionAdicional   Decimal? @db.Decimal(5, 4) // Comisión adicional de la cooperativa
-  
+  montoMinimo       Decimal? @db.Decimal(12, 2)
+  montoMaximo       Decimal? @db.Decimal(12, 2)
+  comisionAdicional Decimal? @db.Decimal(5, 4) // Comisión adicional de la cooperativa
+
   // Información de integración
-  fechaIntegracion    DateTime @default(now())
+  fechaIntegracion    DateTime  @default(now())
   fechaUltimaConexion DateTime?
-  estadoConexion      String   @default("NO_VERIFICADO") // NO_VERIFICADO, CONECTADO, ERROR
+  estadoConexion      String    @default("NO_VERIFICADO") // NO_VERIFICADO, CONECTADO, ERROR
   ultimoErrorConexion String?
-  
+
   // Estadísticas de uso
-  totalTransacciones  Int      @default(0)
-  montoTotalProcesado Decimal  @default(0) @db.Decimal(15, 2)
+  totalTransacciones  Int       @default(0)
+  montoTotalProcesado Decimal   @default(0) @db.Decimal(15, 2)
   ultimaTransaccion   DateTime?
-  
+
   // Auditoría
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relaciones
-  cooperativaId       String        @unique
-  cooperativa         Cooperativa   @relation(fields: [cooperativaId], references: [id], onDelete: Cascade)
-  
-  proveedorPagoId     String
-  proveedorPago       ProveedorPago @relation(fields: [proveedorPagoId], references: [id], onDelete: Restrict)
+  cooperativaId Int         @unique
+  cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id], onDelete: Cascade)
+
+  proveedorPagoId String
+  proveedorPago   ProveedorPago @relation(fields: [proveedorPagoId], references: [id], onDelete: Restrict)
 
   @@index([cooperativaId])
   @@index([proveedorPagoId])
@@ -2536,45 +2539,45 @@ model ConfiguracionSuscripcion {
   id String @id @default(cuid())
 
   // Configuración de comisión
-  porcentajeComision    Decimal @db.Decimal(5, 4) // Ej: 2.5% = 0.0250
-  comisionMinima        Decimal @default(0) @db.Decimal(12, 2) // Comisión mínima por mes
-  comisionMaxima        Decimal? @db.Decimal(12, 2) // Comisión máxima por mes (opcional)
-  
+  porcentajeComision Decimal  @db.Decimal(5, 4) // Ej: 2.5% = 0.0250
+  comisionMinima     Decimal  @default(0) @db.Decimal(12, 2) // Comisión mínima por mes
+  comisionMaxima     Decimal? @db.Decimal(12, 2) // Comisión máxima por mes (opcional)
+
   // Configuración de facturación
-  diaGeneracionFactura  Int     @default(1) // Día del mes para generar facturas (1-28)
-  diasVencimientoFactura Int    @default(30) // Días desde generación hasta vencimiento
-  
+  diaGeneracionFactura   Int @default(1) // Día del mes para generar facturas (1-28)
+  diasVencimientoFactura Int @default(30) // Días desde generación hasta vencimiento
+
   // Configuración de pagos
-  incluyeIVA            Boolean @default(true)
-  porcentajeIVA         Decimal @default(21) @db.Decimal(5, 2) // 21% IVA
-  
+  incluyeIVA    Boolean @default(true)
+  porcentajeIVA Decimal @default(21) @db.Decimal(5, 2) // 21% IVA
+
   // Información comercial
-  fechaInicioSuscripcion DateTime @default(now())
+  fechaInicioSuscripcion DateTime  @default(now())
   fechaFinSuscripcion    DateTime? // null = suscripción indefinida
   observaciones          String?
-  
+
   // Configuración de notificaciones
-  notificarGeneracionFactura Boolean @default(true)
+  notificarGeneracionFactura  Boolean @default(true)
   notificarVencimientoFactura Boolean @default(true)
-  diasAvisoVencimiento       Int     @default(7)
-  
+  diasAvisoVencimiento        Int     @default(7)
+
   // Estado
-  activa                Boolean  @default(true)
-  fechaUltimModificacion DateTime @default(now())
+  activa                  Boolean  @default(true)
+  fechaUltimModificacion  DateTime @default(now())
   modificadoPorSuperAdmin String? // ID del superadmin que hizo el último cambio
-  
+
   // Auditoría
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relaciones
-  cooperativaId         String      @unique
-  cooperativa           Cooperativa @relation(fields: [cooperativaId], references: [id], onDelete: Cascade)
-  
+  cooperativaId Int         @unique
+  cooperativa   Cooperativa @relation(fields: [cooperativaId], references: [id], onDelete: Cascade)
+
   // Historial de cambios
-  historialCambios      HistorialConfiguracionSuscripcion[]
-  solicitudesComision   SolicitudCambioComision[]
-  facturasSuscripcion   SuscripcionFactura[]
+  historialCambios    HistorialConfiguracionSuscripcion[]
+  solicitudesComision SolicitudCambioComision[]
+  facturasSuscripcion SuscripcionFactura[]
 
   @@index([cooperativaId])
   @@index([activa])
@@ -2587,22 +2590,22 @@ model HistorialConfiguracionSuscripcion {
   id String @id @default(cuid())
 
   // Datos del cambio
-  campoModificado       String  // "porcentajeComision", "comisionMinima", etc.
-  valorAnterior         String  // Valor anterior serializado
-  valorNuevo            String  // Valor nuevo serializado
-  motivo                String? // Motivo del cambio
-  
+  campoModificado String // "porcentajeComision", "comisionMinima", etc.
+  valorAnterior   String // Valor anterior serializado
+  valorNuevo      String // Valor nuevo serializado
+  motivo          String? // Motivo del cambio
+
   // Información del cambio
-  fechaCambio           DateTime @default(now())
-  realizadoPorSuperAdmin String  // ID del superadmin que realizó el cambio
+  fechaCambio            DateTime @default(now())
+  realizadoPorSuperAdmin String // ID del superadmin que realizó el cambio
   aprobadoPorSuperAdmin  String? // ID del superadmin que aprobó (si aplica)
-  
+
   // Auditoría
-  createdAt             DateTime @default(now())
+  createdAt DateTime @default(now())
 
   // Relaciones
-  configuracionId       String
-  configuracion         ConfiguracionSuscripcion @relation(fields: [configuracionId], references: [id], onDelete: Cascade)
+  configuracionId String
+  configuracion   ConfiguracionSuscripcion @relation(fields: [configuracionId], references: [id], onDelete: Cascade)
 
   @@index([configuracionId])
   @@index([fechaCambio])
@@ -2615,41 +2618,41 @@ model SolicitudCambioComision {
   id String @id @default(cuid())
 
   // Datos de la solicitud
-  porcentajeComisionActual    Decimal @db.Decimal(5, 4) // Comisión actual
+  porcentajeComisionActual     Decimal @db.Decimal(5, 4) // Comisión actual
   porcentajeComisionSolicitado Decimal @db.Decimal(5, 4) // Comisión solicitada
-  
+
   // Justificación
-  motivo                      String  // Motivo de la solicitud
-  justificacion               String? // Justificación detallada
-  documentosAdjuntos          String[] @default([]) // URLs de documentos adjuntos
-  
+  motivo             String // Motivo de la solicitud
+  justificacion      String? // Justificación detallada
+  documentosAdjuntos String[] @default([]) // URLs de documentos adjuntos
+
   // Datos comerciales para justificar
-  volumenMensualPromedio      Decimal? @db.Decimal(15, 2) // Volumen promedio mensual
-  cantidadPagosPromedio       Int?     // Cantidad promedio de pagos por mes
-  tiempoComoCiente            Int?     // Meses como cliente
-  proyeccionCrecimiento       Decimal? @db.Decimal(5, 2) // % de crecimiento proyectado
-  
+  volumenMensualPromedio Decimal? @db.Decimal(15, 2) // Volumen promedio mensual
+  cantidadPagosPromedio  Int? // Cantidad promedio de pagos por mes
+  tiempoComoCiente       Int? // Meses como cliente
+  proyeccionCrecimiento  Decimal? @db.Decimal(5, 2) // % de crecimiento proyectado
+
   // Estado de la solicitud
-  estado                      EstadoSolicitudComision @default(PENDIENTE)
-  fechaSolicitud              DateTime @default(now())
-  fechaRevision               DateTime?
-  fechaResolucion             DateTime?
-  
+  estado          EstadoSolicitudComision @default(PENDIENTE)
+  fechaSolicitud  DateTime                @default(now())
+  fechaRevision   DateTime?
+  fechaResolucion DateTime?
+
   // Respuesta de superadmins
-  respuestaSuperAdmin         String? // Respuesta/comentarios del superadmin
-  porcentajeComisionAprobado  Decimal? @db.Decimal(5, 4) // Comisión finalmente aprobada
-  fechaInicioNuevaComision    DateTime? // Cuándo entra en vigor la nueva comisión
-  
+  respuestaSuperAdmin        String? // Respuesta/comentarios del superadmin
+  porcentajeComisionAprobado Decimal?  @db.Decimal(5, 4) // Comisión finalmente aprobada
+  fechaInicioNuevaComision   DateTime? // Cuándo entra en vigor la nueva comisión
+
   // Auditoría
-  revisadoPorSuperAdmin       String? // ID del superadmin que revisó
-  aprobadoPorSuperAdmin       String? // ID del superadmin que aprobó/rechazó
-  
-  createdAt                   DateTime @default(now())
-  updatedAt                   DateTime @updatedAt
+  revisadoPorSuperAdmin String? // ID del superadmin que revisó
+  aprobadoPorSuperAdmin String? // ID del superadmin que aprobó/rechazó
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relaciones
-  configuracionId             String
-  configuracion               ConfiguracionSuscripcion @relation(fields: [configuracionId], references: [id], onDelete: Cascade)
+  configuracionId String
+  configuracion   ConfiguracionSuscripcion @relation(fields: [configuracionId], references: [id], onDelete: Cascade)
 
   @@index([configuracionId])
   @@index([estado])
@@ -2663,46 +2666,46 @@ model SuscripcionFactura {
   id String @id @default(cuid())
 
   // Datos del período
-  mes                   Int      // 1-12
-  anio                  Int
-  periodo               String   // "10/2025"
-  
+  mes     Int // 1-12
+  anio    Int
+  periodo String // "10/2025"
+
   // Fechas importantes
-  fechaGeneracion       DateTime @default(now())
-  fechaVencimiento      DateTime
-  fechaAprobacion       DateTime? // Cuando el superadmin aprueba la factura
-  fechaPago             DateTime? // Cuando se marca como pagada
-  
+  fechaGeneracion  DateTime  @default(now())
+  fechaVencimiento DateTime
+  fechaAprobacion  DateTime? // Cuando el superadmin aprueba la factura
+  fechaPago        DateTime? // Cuando se marca como pagada
+
   // Datos de facturación
-  cantidadPagos         Int      // Cantidad de pagos procesados en el mes
-  montoTotalPagos       Decimal  @db.Decimal(15, 2) // Suma total de pagos del mes
-  porcentajeComision    Decimal  @db.Decimal(5, 4) // % de comisión aplicado
-  
+  cantidadPagos      Int // Cantidad de pagos procesados en el mes
+  montoTotalPagos    Decimal @db.Decimal(15, 2) // Suma total de pagos del mes
+  porcentajeComision Decimal @db.Decimal(5, 4) // % de comisión aplicado
+
   // Cálculos
-  subtotalComision      Decimal  @db.Decimal(12, 2) // Comisión antes de impuestos
-  montoIVA              Decimal  @db.Decimal(12, 2) // IVA sobre la comisión
-  totalFactura          Decimal  @db.Decimal(12, 2) // Total a pagar
-  
+  subtotalComision Decimal @db.Decimal(12, 2) // Comisión antes de impuestos
+  montoIVA         Decimal @db.Decimal(12, 2) // IVA sobre la comisión
+  totalFactura     Decimal @db.Decimal(12, 2) // Total a pagar
+
   // Estado
-  estado                EstadoSuscripcionFactura @default(GENERADA)
-  tipoPago              TipoPagoSuscripcion?     // Cómo se realizó el pago
-  referenciaPago        String?                  // Referencia del pago (transferencia, etc.)
-  
+  estado         EstadoSuscripcionFactura @default(GENERADA)
+  tipoPago       TipoPagoSuscripcion? // Cómo se realizó el pago
+  referenciaPago String? // Referencia del pago (transferencia, etc.)
+
   // Observaciones
-  observaciones         String?
-  observacionesPago     String? // Observaciones sobre el pago
-  
+  observaciones     String?
+  observacionesPago String? // Observaciones sobre el pago
+
   // Auditoría
-  generadoPorSistema    Boolean  @default(true)
-  aprobadoPorSuperAdmin String?  // ID del superadmin que aprobó
-  marcadoPagadoPor      String?  // ID del superadmin que marcó como pagado
-  
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  generadoPorSistema    Boolean @default(true)
+  aprobadoPorSuperAdmin String? // ID del superadmin que aprobó
+  marcadoPagadoPor      String? // ID del superadmin que marcó como pagado
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relaciones
-  configuracionId       String
-  configuracion         ConfiguracionSuscripcion @relation(fields: [configuracionId], references: [id], onDelete: Restrict)
+  configuracionId String
+  configuracion   ConfiguracionSuscripcion @relation(fields: [configuracionId], references: [id], onDelete: Restrict)
 
   @@unique([configuracionId, mes, anio]) // Una factura por cooperativa por mes
   @@index([configuracionId])
@@ -2718,35 +2721,35 @@ model ConfiguracionDatosBancarios {
   id String @id @default(cuid())
 
   // Datos bancarios principales
-  nombreCuenta          String  // Nombre de la cuenta bancaria
-  nombreBanco           String  // Nombre del banco
-  cbu                   String  // CBU para transferencias
-  alias                 String? // Alias bancario (opcional)
-  
+  nombreCuenta String // Nombre de la cuenta bancaria
+  nombreBanco  String // Nombre del banco
+  cbu          String // CBU para transferencias
+  alias        String? // Alias bancario (opcional)
+
   // Datos adicionales
-  numeroCuenta          String? // Número de cuenta bancaria
-  tipoCuenta            String? // "CUENTA_CORRIENTE", "CAJA_AHORRO"
-  sucursal              String? // Nombre o número de sucursal
-  
+  numeroCuenta String? // Número de cuenta bancaria
+  tipoCuenta   String? // "CUENTA_CORRIENTE", "CAJA_AHORRO"
+  sucursal     String? // Nombre o número de sucursal
+
   // Información para facturas
-  razonSocialTitular    String  // Razón social del titular de la cuenta
-  cuitTitular           String  // CUIT del titular de la cuenta
-  domicilioFiscal       String  // Domicilio fiscal del titular
-  
+  razonSocialTitular String // Razón social del titular de la cuenta
+  cuitTitular        String // CUIT del titular de la cuenta
+  domicilioFiscal    String // Domicilio fiscal del titular
+
   // Configuración
-  activo                Boolean  @default(true)
-  esPrincipal           Boolean  @default(true) // Cuenta principal para recibir pagos
-  
+  activo      Boolean @default(true)
+  esPrincipal Boolean @default(true) // Cuenta principal para recibir pagos
+
   // Información adicional para cooperativas
-  instruccionesPago     String?  // Instrucciones adicionales para el pago
-  horarioAtencion       String?  // Horario de atención para consultas
-  emailContacto         String?  // Email de contacto para temas de pagos
-  telefonoContacto      String?  // Teléfono de contacto
-  
+  instruccionesPago String? // Instrucciones adicionales para el pago
+  horarioAtencion   String? // Horario de atención para consultas
+  emailContacto     String? // Email de contacto para temas de pagos
+  telefonoContacto  String? // Teléfono de contacto
+
   // Auditoría
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-  creadoPorSuperAdmin   String   // ID del superadmin que creó la configuración
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  creadoPorSuperAdmin     String // ID del superadmin que creó la configuración
   modificadoPorSuperAdmin String? // ID del último superadmin que modificó
 
   @@index([activo])

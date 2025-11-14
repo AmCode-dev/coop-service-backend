@@ -31,6 +31,7 @@ export class ConfiguracionOnboardingController {
     @Param('cooperativaId') cooperativaId: string,
     @GetUser() user: AuthenticatedUser,
   ) {
+    const parseredCooperativaId = parseInt(cooperativaId);
     // Solo SUPER_ADMIN puede gestionar configuraciones de onboarding
     if (!user.roles.some((r) => r.nombre === 'SUPER_ADMIN')) {
       throw new Error(
@@ -38,7 +39,9 @@ export class ConfiguracionOnboardingController {
       );
     }
 
-    return this.configuracionService.obtenerConfiguracion(cooperativaId);
+    return this.configuracionService.obtenerConfiguracion(
+      parseredCooperativaId,
+    );
   }
 
   /**
@@ -59,8 +62,9 @@ export class ConfiguracionOnboardingController {
       );
     }
 
+    const parseredCooperativaId = parseInt(cooperativaId);
     return this.configuracionService.actualizarConfiguracion(
-      cooperativaId,
+      parseredCooperativaId,
       datos,
     );
   } /**
@@ -73,6 +77,7 @@ export class ConfiguracionOnboardingController {
     @Param('cooperativaId') cooperativaId: string,
     @GetUser() user: AuthenticatedUser,
   ) {
+    const parseredCooperativaId = parseInt(cooperativaId);
     // Solo SUPER_ADMIN puede gestionar configuraciones de onboarding
     if (!user.roles.some((r) => r.nombre === 'SUPER_ADMIN')) {
       throw new Error(
@@ -80,7 +85,7 @@ export class ConfiguracionOnboardingController {
       );
     }
 
-    return this.configuracionService.obtenerReglas(cooperativaId);
+    return this.configuracionService.obtenerReglas(parseredCooperativaId);
   }
 
   /**
@@ -94,6 +99,7 @@ export class ConfiguracionOnboardingController {
     @Body() datos: any,
     @GetUser() user: AuthenticatedUser,
   ) {
+    const parseredCooperativaId = parseInt(cooperativaId);
     // Solo SUPER_ADMIN puede gestionar configuraciones de onboarding
     if (!user.roles.some((r) => r.nombre === 'SUPER_ADMIN')) {
       throw new Error(
@@ -101,7 +107,7 @@ export class ConfiguracionOnboardingController {
       );
     }
 
-    return this.configuracionService.crearRegla(cooperativaId, datos);
+    return this.configuracionService.crearRegla(parseredCooperativaId, datos);
   }
 
   /**
@@ -115,6 +121,7 @@ export class ConfiguracionOnboardingController {
     @Param('reglaId') reglaId: string,
     @GetUser() user: AuthenticatedUser,
   ) {
+    const parseredCooperativaId = parseInt(cooperativaId);
     // Solo SUPER_ADMIN puede gestionar configuraciones de onboarding
     if (!user.roles.some((r) => r.nombre === 'SUPER_ADMIN')) {
       throw new Error(
@@ -122,7 +129,10 @@ export class ConfiguracionOnboardingController {
       );
     }
 
-    return this.configuracionService.obtenerRegla(reglaId, cooperativaId);
+    return this.configuracionService.obtenerRegla(
+      reglaId,
+      parseredCooperativaId,
+    );
   }
 
   /**
@@ -143,10 +153,10 @@ export class ConfiguracionOnboardingController {
         'Solo los Super Administradores pueden modificar reglas de onboarding',
       );
     }
-
+    const parseredCooperativaId = parseInt(cooperativaId);
     return this.configuracionService.actualizarRegla(
       reglaId,
-      cooperativaId,
+      parseredCooperativaId,
       datos,
     );
   }
@@ -162,6 +172,7 @@ export class ConfiguracionOnboardingController {
     @Param('reglaId') reglaId: string,
     @GetUser() user: AuthenticatedUser,
   ) {
+    const parseredCooperativaId = parseInt(cooperativaId);
     // Solo SUPER_ADMIN puede gestionar configuraciones de onboarding
     if (!user.roles.some((r) => r.nombre === 'SUPER_ADMIN')) {
       throw new Error(
@@ -169,7 +180,10 @@ export class ConfiguracionOnboardingController {
       );
     }
 
-    return this.configuracionService.eliminarRegla(reglaId, cooperativaId);
+    return this.configuracionService.eliminarRegla(
+      reglaId,
+      parseredCooperativaId,
+    );
   }
 
   /**
@@ -183,6 +197,7 @@ export class ConfiguracionOnboardingController {
     @Body() datos: { ordenes: Array<{ id: string; orden: number }> },
     @GetUser() user: AuthenticatedUser,
   ) {
+    const parseredCooperativaId = parseInt(cooperativaId);
     // Solo SUPER_ADMIN puede gestionar configuraciones de onboarding
     if (!user.roles.some((r) => r.nombre === 'SUPER_ADMIN')) {
       throw new Error(
@@ -191,7 +206,7 @@ export class ConfiguracionOnboardingController {
     }
 
     return this.configuracionService.reordenarReglas(
-      cooperativaId,
+      parseredCooperativaId,
       datos.ordenes,
     );
   }
@@ -206,6 +221,7 @@ export class ConfiguracionOnboardingController {
     @Param('cooperativaId') cooperativaId: string,
     @GetUser() user: AuthenticatedUser,
   ) {
+    const parseredCooperativaId = parseInt(cooperativaId);
     // Solo SUPER_ADMIN puede gestionar configuraciones de onboarding
     if (!user.roles.some((r) => r.nombre === 'SUPER_ADMIN')) {
       throw new Error(
@@ -213,6 +229,6 @@ export class ConfiguracionOnboardingController {
       );
     }
 
-    return this.configuracionService.obtenerEstadisticas(cooperativaId);
+    return this.configuracionService.obtenerEstadisticas(parseredCooperativaId);
   }
 }
