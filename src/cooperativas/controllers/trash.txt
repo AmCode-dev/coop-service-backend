@@ -1,0 +1,58 @@
+  /**
+   * Crea una nueva cooperativa
+   */
+  // @Post()
+  // @RequirePermissions('SYSTEM', 'CREATE')
+  // @HttpCode(HttpStatus.CREATED)
+  // async create(@Body() createCooperativaDto: CreateCooperativaDto) {
+  //   return {
+  //     success: true,
+  //     data: await this.cooperativasService.create(createCooperativaDto),
+  //     message: 'Cooperativa creada exitosamente',
+  //   };
+  // }
+
+  /**
+   * Actualiza una cooperativa
+   */
+  @Put(':id')
+  @RequirePermissions('COOPERATIVAS', 'UPDATE')
+  async update(
+    @Param('id') id: string,
+    @Body() updateCooperativaDto: UpdateCooperativaDto,
+    @GetUser() user: AuthenticatedUser,
+  ) {
+    // Los usuarios solo pueden actualizar su propia cooperativa
+    if (
+      user.cooperativaId !== id &&
+      !user.roles.some((r) => r.nombre === 'SUPER_ADMIN')
+    ) {
+      throw new Error('No autorizado para actualizar esta cooperativa');
+    }
+
+    return {
+      success: true,
+      data: await this.cooperativasService.update(id, updateCooperativaDto),
+      message: 'Cooperativa actualizada exitosamente',
+    };
+  }
+
+  /**
+   * Elimina (desactiva) una cooperativa
+   */
+  @Delete(':id')
+  @RequirePermissions('COOPERATIVAS', 'DELETE')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async remove(@Param('id') id: string, @GetUser() user: AuthenticatedUser) {
+    // Solo super admin puede eliminar cooperativas
+    if (!user.roles.some((r) => r.nombre === 'SUPER_ADMIN')) {
+      throw new Error('No autorizado para eliminar cooperativas');
+    }
+
+    await this.cooperativasService.remove(id);
+
+    return {
+      success: true,
+      message: 'Cooperativa desactivada exitosamente',
+    };
+  }

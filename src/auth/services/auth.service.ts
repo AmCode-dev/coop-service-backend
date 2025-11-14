@@ -109,25 +109,6 @@ export class AuthService {
       sessionInfo,
     );
 
-    console.log('Returned data', {
-      success: true,
-      accessToken,
-      refreshToken: refreshToken.token,
-      user: {
-        id: usuarioCooperativa.usuario.id,
-        email: usuarioCooperativa.usuario.email,
-        nombre: usuarioCooperativa.usuario.nombre,
-        apellido: usuarioCooperativa.usuario.apellido,
-        esEmpleado: usuarioCooperativa.esEmpleado,
-        cooperativa: {
-          id: usuarioCooperativa.cooperativa.id,
-          nombre: usuarioCooperativa.cooperativa.nombre,
-        },
-      },
-      expiresIn: 3600, // 1 hora para access token
-      refreshExpiresIn: 30 * 24 * 60 * 60, // 30 días para refresh token
-    });
-
     return {
       success: true,
       accessToken,
