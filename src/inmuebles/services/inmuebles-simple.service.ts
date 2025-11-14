@@ -65,6 +65,10 @@ export class InmueblesService {
     usuarioId: string,
   ): Promise<InmuebleCompleto> {
     // Verificar que el titular existe y pertenece a la cooperativa
+    if (!data.titularInmuebleId) {
+      throw new BadRequestException('El titular del inmueble es obligatorio');
+    }
+
     const titular = await this.prisma.persona.findFirst({
       where: {
         id: data.titularInmuebleId,

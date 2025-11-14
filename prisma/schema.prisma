@@ -123,26 +123,12 @@ model Usuario {
 
   refreshTokens RefreshToken[]
 
-  // Onboarding
-  procesoOnboardingCreado ProcesoOnboarding? @relation("OnboardingUsuario")
-
-  // Medidores - Historial de vinculaciones
-  vinculacionesMedidores HistorialVinculacionMedidor[]
-
-  // Lecturas de medidores tomadas
-  lecturasMedidores Lectura[]
-
-  // KYC y Gestión de Personas
-  validacionesKYCRealizadas DocumentoKYC[]       @relation("ValidacionesKYC")
-  cambiosEstadoKYC          HistorialEstadoKYC[] @relation("CambiosEstadoKYC")
-
-  // Historial de precios de categorías
-  historialPreciosCreados HistorialPrecioCategoria[] @relation("HistorialPreciosCreados")
-
-  // Historial de conceptos facturables
+  procesoOnboardingCreado   ProcesoOnboarding?            @relation("OnboardingUsuario")
+  vinculacionesMedidores    HistorialVinculacionMedidor[]
+  lecturasMedidores         Lectura[]
+  historialPreciosCreados   HistorialPrecioCategoria[]    @relation("HistorialPreciosCreados")
   historialConceptosCreados HistorialConcepto[]
 
-  // Períodos facturables
   periodosFacturablesCreados  PeriodoFacturable[]
   periodosFacturablesCerrados PeriodoFacturable[] @relation("PeriodosCerrados")
 
@@ -341,15 +327,6 @@ enum EstadoKYC {
   REQUIERE_INFORMACION_ADICIONAL
 }
 
-enum TipoDocumentoKYC {
-  FRENTE_DNI
-  DORSO_DNI
-  SELFIE
-  COMPROBANTE_DOMICILIO
-  COMPROBANTE_INGRESOS
-  CUIT_CONSTANCIA
-  OTRO
-}
 
 enum EstadoSocio {
   ACTIVO
@@ -402,14 +379,6 @@ model Persona {
   fechaAlta   DateTime? // Fecha de alta como socio
   estadoSocio EstadoSocio @default(ACTIVO)
 
-  // KYC (Know Your Customer)
-  estadoKYC                EstadoKYC @default(PENDIENTE)
-  fechaInicioKYC           DateTime?
-  fechaCompletadoKYC       DateTime?
-  observacionesKYC         String?
-  requiereActualizacionKYC Boolean   @default(false)
-  proximaRevisionKYC       DateTime?
-
   // Preferencias
   recibirNotificaciones       Boolean @default(true)
   recibirNotificacionesPorSMS Boolean @default(false)
@@ -426,15 +395,12 @@ model Persona {
   cuentasComoTitularServicio Cuenta[]   @relation("TitularServicio")
   inmueblesComoTitular       Inmueble[] @relation("TitularInmueble")
 
-  // Nueva relación multi-tenant
   usuariosCooperativa UsuarioCooperativa[] @relation("UsuarioCooperativaPersona")
 
   transferenciasDesde TransferenciaTitularidad[] @relation("TransferenciasDesdeTitular")
   transferenciasHacia TransferenciaTitularidad[] @relation("TransferenciasHaciaTitular")
 
   // Nuevas relaciones KYC y gestión
-  documentosKYC          DocumentoKYC[]
-  historialEstadoKYC     HistorialEstadoKYC[]
   solicitudesReset       SolicitudResetPassword[]
   notificacionesEnviadas NotificacionPersona[]
 
@@ -442,64 +408,9 @@ model Persona {
   @@unique([cooperativaId, numeroSocio]) // Número de socio único por cooperativa
   @@index([cooperativaId])
   @@index([numeroDocumento])
-  @@index([estadoKYC])
   @@index([estadoSocio])
   @@index([numeroSocio])
   @@map("personas")
-}
-
-// ============================================
-// GESTIÓN KYC Y DOCUMENTACIÓN
-// ============================================
-
-model DocumentoKYC {
-  id        String  @id @default(cuid())
-  personaId String
-  persona   Persona @relation(fields: [personaId], references: [id], onDelete: Cascade)
-
-  tipoDocumento  TipoDocumentoKYC
-  nombreArchivo  String
-  urlArchivo     String // Ruta o URL del archivo subido
-  tamanioArchivo Int? // En bytes
-  mimeType       String?
-
-  // Validación
-  validado        Boolean   @default(false)
-  fechaValidacion DateTime?
-  validadoPorId   String?
-  validadoPor     Usuario?  @relation("ValidacionesKYC", fields: [validadoPorId], references: [id])
-  observaciones   String?
-
-  // Estados
-  requiereReemplazo Boolean   @default(false)
-  fechaVencimiento  DateTime? // Para documentos que expiran
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([personaId])
-  @@index([tipoDocumento])
-  @@index([validado])
-  @@map("documentos_kyc")
-}
-
-model HistorialEstadoKYC {
-  id        String  @id @default(cuid())
-  personaId String
-  persona   Persona @relation(fields: [personaId], references: [id], onDelete: Cascade)
-
-  estadoAnterior EstadoKYC?
-  estadoNuevo    EstadoKYC
-  motivo         String?
-  observaciones  String?
-
-  // Auditoría
-  fechaCambio   DateTime @default(now())
-  cambiadoPorId String?
-  cambiadoPor   Usuario? @relation("CambiosEstadoKYC", fields: [cambiadoPorId], references: [id])
-
-  @@index([personaId, fechaCambio])
-  @@map("historial_estado_kyc")
 }
 
 model SolicitudResetPassword {
@@ -585,8 +496,8 @@ model Inmueble {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  titularInmuebleId String
-  titularInmueble   Persona @relation("TitularInmueble", fields: [titularInmuebleId], references: [id], onDelete: Restrict)
+  titularInmuebleId String?
+  titularInmueble   Persona? @relation("TitularInmueble", fields: [titularInmuebleId], references: [id], onDelete: Restrict)
 
   // Relaciones
   cuentas Cuenta[]

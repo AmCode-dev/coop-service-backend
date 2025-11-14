@@ -28,7 +28,7 @@ export interface InmuebleCompleto {
   parcela?: string | null;
   createdAt: Date;
   updatedAt: Date;
-  titularInmuebleId: string;
+  titularInmuebleId: string | null;
   titularInmueble: {
     id: string;
     nombreCompleto: string;
@@ -36,7 +36,7 @@ export interface InmuebleCompleto {
     numeroDocumento: string;
     email?: string | null;
     telefono?: string | null;
-  };
+  } | null;
   cuentas: any[];
   legajo?: any | null;
 }
@@ -63,6 +63,10 @@ export class InmueblesService {
     usuarioId: string,
   ): Promise<InmuebleCompleto> {
     // Verificar que el titular existe y pertenece a la cooperativa
+    // Verificar que el titular existe y pertenece a la cooperativa
+    if (!data.titularInmuebleId) {
+      throw new BadRequestException('El titular del inmueble es obligatorio');
+    }
     const titular = await this.prisma.persona.findFirst({
       where: {
         id: data.titularInmuebleId,
@@ -454,6 +458,10 @@ export class InmueblesService {
       },
     });
 
+    if (!inmueble.titularInmuebleId) {
+      throw new BadRequestException('El inmueble no tiene un titular actual');
+    }
+
     if (!nuevoTitular) {
       throw new NotFoundException(
         'El nuevo titular no existe o no pertenece a esta cooperativa',
@@ -473,12 +481,12 @@ export class InmueblesService {
         data: {
           numeroTransferencia:
             await this.generarNumeroTransferencia(cooperativaId),
-          motivo: data.motivo as any, // Cast temporal mientras se resuelven los tipos
+          motivo: data.motivo, // Cast temporal mientras se resuelven los tipos
           descripcionMotivo: data.descripcionMotivo,
           fechaTransferencia: data.fechaTransferencia
             ? new Date(data.fechaTransferencia)
             : new Date(),
-          titularAnteriorId: inmueble.titularInmuebleId,
+          titularAnteriorId: inmueble.titularInmuebleId! ?? null,
           titularNuevoId: data.titularNuevoId,
           valorTransferencia: data.valorTransferencia,
           moneda: data.moneda || 'ARS',

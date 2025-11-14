@@ -59,5 +59,5 @@ export class CreateInmuebleDto {
 
   @IsString()
   @IsNotEmpty()
-  titularInmuebleId: string;
+  titularInmuebleId?: string | null;
 }
